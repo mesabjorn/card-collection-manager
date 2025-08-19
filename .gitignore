@@ -1,1 +1,3 @@
 /target
+/cardlists/*.json
+cards.db

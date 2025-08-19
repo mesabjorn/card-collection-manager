@@ -2,7 +2,7 @@
 
 1. go to a series page:
 e.g. https://yugioh.fandom.com/wiki/Set_Card_Lists:Legend_of_Blue_Eyes_White_Dragon_(TCG-EN)
-2. 
+2. Run
 ```js
 function tableToJson(tableId) {
     const table = document.getElementById(tableId);
@@ -23,4 +23,14 @@ const jsonData = tableToJson("Top_table");
 console.log(JSON.stringify(jsonData, null, 2));
 
 ```
-3. Copy the result to a json file.
+3. Create a json file and add:
+```json
+{
+    "name":"Legend of Blue Eyes White Dragon",
+    "ncards":126,
+    "release_year":2002,
+    "cards":[
+        //paste cards json here
+    ]
+}
+```

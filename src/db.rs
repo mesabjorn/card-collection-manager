@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use rusqlite::{Connection, Result, params};
 
 use crate::card::Card;
@@ -29,7 +30,7 @@ impl DatabaseConnection {
             "CREATE TABLE IF NOT EXISTS series (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
-        release_year INTEGER NOT NULL,
+        release_date DATE NOT NULL,
         n_cards INTEGER NOT NULL DEFAULT 0
         )",
             [],
@@ -62,11 +63,13 @@ impl DatabaseConnection {
     }
 
     pub fn insert_series(&self, series: &Series) -> Result<i32> {
-        // Try inserting
+        let release_date = NaiveDate::parse_from_str(&series.release_date, "%B %d, %Y")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
+
         self.conn.execute(
-            "INSERT OR IGNORE INTO series (name, release_year, n_cards)
+            "INSERT OR IGNORE INTO series (name, release_date, n_cards)
          VALUES (?1, ?2, ?3)",
-            params![series.name, series.release_year, series.n_cards],
+            params![series.name, release_date.to_string(), series.n_cards],
         )?;
 
         // Always fetch the id (whether newly inserted or existing)
@@ -125,6 +128,48 @@ impl DatabaseConnection {
         Ok(card_iter.filter_map(Result::ok).collect())
     }
 
+    /// Query cards with rarity name joined
+    pub fn get_cards_by_series(
+        &self,
+        series_name: &str,
+    ) -> Result<Vec<(Card, String, String)>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT c.name, c.number, c.collection_number, c.in_collection,
+                r.name, s.name, c.series_id, c.rarity_id
+         FROM cards c
+         JOIN rarity r ON c.rarity_id = r.id
+         JOIN series s ON c.series_id = s.id
+         WHERE s.name = ?1",
+            )
+            .map_err(DbError::SqliteError)?;
+
+        let card_iter = stmt
+            .query_map([series_name], |row| {
+                let card = Card {
+                    name: row.get(0)?,
+                    number: row.get(1)?,
+                    collection_number: row.get(2)?,
+                    in_collection: row.get(3)?,
+                    rarity_id: row.get(7)?,
+                    series_id: row.get(6)?,
+                };
+                let rarity_name: String = row.get(4)?;
+                let series_name: String = row.get(5)?;
+                Ok((card, rarity_name, series_name))
+            })
+            .map_err(DbError::SqliteError)?;
+
+        let results: Vec<_> = card_iter.filter_map(Result::ok).collect();
+
+        if results.is_empty() {
+            Err(DbError::UnknownSeries(series_name.to_string()))
+        } else {
+            Ok(results)
+        }
+    }
+
     pub fn get_rarity_id(&self, rarity_name: &str) -> Result<i32, DbError> {
         let mut stmt = self.conn.prepare("SELECT id FROM rarity WHERE name = ?1")?;
         match stmt.query_row([rarity_name], |r| r.get(0)) {
@@ -139,13 +184,13 @@ impl DatabaseConnection {
     pub fn get_series_by_id(&self, id: i32) -> Result<Series, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, release_year, n_cards FROM series WHERE id = ?1")?;
+            .prepare("SELECT id, name, release_date, n_cards FROM series WHERE id = ?1")?;
 
         match stmt.query_row([id], |r| {
             Ok(Series {
                 id: r.get(0)?,
                 name: r.get(1)?,
-                release_year: r.get(2)?,
+                release_date: r.get(2)?,
                 n_cards: r.get(3)?,
             })
         }) {

@@ -12,6 +12,6 @@ pub struct CardJson {
 pub struct SeriesJson {
     pub name: String,
     pub ncards: i32,
-    pub release_year: i32,
+    pub release_date: String,
     pub cards: Vec<CardJson>,
 }

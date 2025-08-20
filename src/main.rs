@@ -29,13 +29,21 @@ pub struct Args {
     /// Database file name
     pub dbname: String,
 
-    /// Mode of operation
+    /// Mode of operation (must be one of [add_series,add_card,add_json,list_cards,list_series])
     #[arg(short, long)]
     pub modus: String,
 
     /// JSON file with cards (required for modus=add_json)
     #[arg(short, long)]
     pub filename: Option<String>,
+
+    /// Optional series name filter for list_cards
+    #[arg(long)]
+    pub series: Option<String>,
+
+    /// Custom output formatter, e.g. "{name},{number},{rarity}"
+    #[arg(long, default_value = "|{series}|{number}|{name}|")]
+    pub formatter: String,
 }
 
 fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
@@ -60,11 +68,11 @@ fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     io::stdin().read_line(&mut name).unwrap();
     let name = name.trim().to_string();
 
-    let mut release_year = String::new();
-    print!("Enter release year: ");
+    let mut release_date = String::new();
+    print!("Enter release date (%Y-%m-%d): ");
     io::stdout().flush().unwrap();
-    io::stdin().read_line(&mut release_year).unwrap();
-    let release_year: i32 = release_year.trim().parse().unwrap_or(0);
+    io::stdin().read_line(&mut release_date).unwrap();
+    let release_date = release_date.trim().to_string();
 
     let mut n_cards = String::new();
     print!("Enter number of cards: ");
@@ -75,7 +83,7 @@ fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     Ok(Series {
         id: None,
         name,
-        release_year,
+        release_date,
         n_cards,
     })
 }
@@ -121,6 +129,16 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
     })
 }
 
+fn format_card(card: &Card, rarity: &str, series: &str, formatter: &str) -> String {
+    formatter
+        .replace("{name}", &card.name)
+        .replace("{number}", &card.number)
+        .replace("{collection_number}", &card.collection_number.to_string())
+        .replace("{rarity}", rarity)
+        .replace("{series}", series)
+        .replace("{in_collection}", &card.in_collection.to_string())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse(); // Parse CLI arguments
     let dbname = args.dbname;
@@ -153,7 +171,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let series = Series {
                 id: None,
                 name: series_json.name.clone(),
-                release_year: series_json.release_year,
+                release_date: series_json.release_date,
                 n_cards: series_json.ncards,
             };
 
@@ -177,8 +195,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         "list_cards" => {
             // Query cards
-            for (card, rarity) in db.get_cards()? {
+            let cards = db.get_cards()?;
+            for (card, rarity) in cards {
                 println!("{:?} | Rarity: {}", card, rarity);
+            }
+        }
+        "list_series" => {
+            let series_name = args
+                .series
+                .as_ref()
+                .ok_or_else(|| "--series is required for list_series")?;
+            // Query cards
+            let cards = db.get_cards_by_series(series_name)?;
+            for (card, rarity, series) in cards {
+                println!("{}", format_card(&card, &rarity, &series, &args.formatter));
             }
         }
         _ => {

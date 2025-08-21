@@ -7,11 +7,14 @@ mod card;
 mod db;
 mod rarity;
 
+mod cli;
 mod dberror; //custom db errors
 mod jsoncards;
 mod series;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
+
+use crate::{card::Card, cli::Args, cli::Command, db::DatabaseConnection, series::Series};
 
 fn get_collection_number_from_string(s: &str) -> i32 {
     s.rsplit(|c: char| !c.is_ascii_digit()) // split from the end by non-digits
@@ -19,56 +22,6 @@ fn get_collection_number_from_string(s: &str) -> i32 {
         .unwrap_or("0") // fallback if none
         .parse::<i32>() // parse as integer
         .unwrap_or(0)
-}
-
-use crate::{card::Card, db::DatabaseConnection, series::Series};
-
-#[derive(Parser, Debug)]
-#[command(name = "app", version, about = "Card DB CLI")]
-pub struct Args {
-    /// Database file name    
-    pub dbname: String,
-
-    #[command(subcommand)]
-    pub command: Command,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum Command {
-    /// Add entities (series, cards, json)
-    Add {
-        /// Kind of entity to add [series | cards | json]        
-        kind: String,
-
-        /// JSON file with cards (required for add json)
-        #[arg(short, long)]
-        filename: Option<String>,
-    },
-
-    /// List entities (series, cards)
-    List {
-        /// Kind of entity to list [series | cards]
-        kind: String,
-
-        /// Optional series name filter (for list cards)
-        #[arg(long)]
-        series: Option<String>,
-
-        /// Custom output formatter, e.g. "{name},{number},{rarity}"
-        #[arg(long, default_value = "|{series}|{number}|{name}|")]
-        formatter: String,
-    },
-
-    /// Collect a card
-    Collect {
-        /// Card ID to collect
-        #[arg(long, num_args = 1..)]
-        id: Vec<String>,
-
-        /// If a single card is given, set `in_collection` to this value
-        #[arg(long)]
-        count: Option<i32>,
-    },
 }
 
 fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {

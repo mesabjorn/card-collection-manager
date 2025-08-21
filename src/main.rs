@@ -11,7 +11,7 @@ mod dberror; //custom db errors
 mod jsoncards;
 mod series;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 fn get_collection_number_from_string(s: &str) -> i32 {
     s.rsplit(|c: char| !c.is_ascii_digit()) // split from the end by non-digits
@@ -23,27 +23,52 @@ fn get_collection_number_from_string(s: &str) -> i32 {
 
 use crate::{card::Card, db::DatabaseConnection, series::Series};
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[derive(Parser, Debug)]
+#[command(name = "app", version, about = "Card DB CLI")]
 pub struct Args {
-    /// Database file name
+    /// Database file name    
     pub dbname: String,
 
-    /// Mode of operation (must be one of [add_series,add_card,add_json,list_cards,list_series])
-    #[arg(short, long)]
-    pub modus: String,
+    #[command(subcommand)]
+    pub command: Command,
+}
 
-    /// JSON file with cards (required for modus=add_json)
-    #[arg(short, long)]
-    pub filename: Option<String>,
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Add entities (series, cards, json)
+    Add {
+        /// Kind of entity to add [series | cards | json]        
+        kind: String,
 
-    /// Optional series name filter for list_cards
-    #[arg(long)]
-    pub series: Option<String>,
+        /// JSON file with cards (required for add json)
+        #[arg(short, long)]
+        filename: Option<String>,
+    },
 
-    /// Custom output formatter, e.g. "{name},{number},{rarity}"
-    #[arg(long, default_value = "|{series}|{number}|{name}|")]
-    pub formatter: String,
+    /// List entities (series, cards)
+    List {
+        /// Kind of entity to list [series | cards]
+        kind: String,
+
+        /// Optional series name filter (for list cards)
+        #[arg(long)]
+        series: Option<String>,
+
+        /// Custom output formatter, e.g. "{name},{number},{rarity}"
+        #[arg(long, default_value = "|{series}|{number}|{name}|")]
+        formatter: String,
+    },
+
+    /// Collect a card
+    Collect {
+        /// Card ID to collect
+        #[arg(long, num_args = 1..)]
+        id: Vec<String>,
+
+        /// If a single card is given, set `in_collection` to this value
+        #[arg(long)]
+        count: Option<i32>,
+    },
 }
 
 fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
@@ -124,7 +149,7 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
         series_id,
         number,
         collection_number: collection_number,
-        in_collection: false,
+        in_collection: 0,
         rarity_id,
     })
 }
@@ -143,76 +168,114 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse(); // Parse CLI arguments
     let dbname = args.dbname;
 
+    println!("{}", dbname);
+
     let db = setup(&dbname)?;
-    match args.modus.as_str() {
-        "add_series" => {
-            let series = prompt_user_series()?;
-            let id = db.insert_series(&series)?;
-            println!("Inserted series with ID {}", id);
-        }
-        "add_card" => {
-            let card = prompt_user_card()?;
-            let id = db.insert_card(&card)?;
-            println!("Inserted card with ID {}", id);
-        }
-        "add_json" => {
-            // Validate that filename is provided
-            let filename = args
-                .filename
-                .as_ref()
-                .ok_or_else(|| "--filename is required for add_json")?;
+    match args.command {
+        Command::Add { kind, filename } => {
+            match kind.as_str() {
+                "series" => {
+                    let series = prompt_user_series()?;
+                    let id = db.insert_series(&series)?;
+                    println!("Inserted series with ID {}", id);
+                }
+                "card" => {
+                    let card = prompt_user_card()?;
+                    let id = db.insert_card(&card)?;
+                    println!("Inserted card with ID {}", id);
+                }
+                "json" => {
+                    // Validate that filename is provided
+                    let filename = filename.expect("--filename is required for add json");
 
-            let file = std::fs::File::open(filename)?;
-            let reader = BufReader::new(file);
+                    let file = std::fs::File::open(filename)?;
+                    let reader = BufReader::new(file);
 
-            let series_json: jsoncards::SeriesJson = serde_json::from_reader(reader)?;
+                    let series_json: jsoncards::SeriesJson = serde_json::from_reader(reader)?;
 
-            // Insert series
-            let series = Series {
-                id: None,
-                name: series_json.name.clone(),
-                release_date: series_json.release_date,
-                n_cards: series_json.ncards,
-            };
+                    // Insert series
+                    let series = Series {
+                        id: None,
+                        name: series_json.name.clone(),
+                        release_date: series_json.release_date,
+                        n_cards: series_json.ncards,
+                    };
 
-            let series_id = db.insert_series(&series)?;
-            let mut cnt = 0;
-            for c in series_json.cards {
-                let card = Card {
-                    name: c.name.clone(),
-                    number: c.card_number.clone(),
-                    collection_number: get_collection_number_from_string(&c.card_number),
-                    rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
-                    series_id: series_id,
-                    in_collection: false,
-                };
-                let inserted_id = db.insert_card(&card)?;
-                if inserted_id != 0 {
-                    cnt += 1;
+                    let series_id = db.insert_series(&series)?;
+                    let mut cnt = 0;
+                    for c in series_json.cards {
+                        let card = Card {
+                            name: c.name.clone(),
+                            number: c.card_number.clone(),
+                            collection_number: get_collection_number_from_string(&c.card_number),
+                            rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
+                            series_id: series_id,
+                            in_collection: 0,
+                        };
+                        let inserted_id = db.insert_card(&card)?;
+                        if inserted_id != 0 {
+                            cnt += 1;
+                        }
+                    }
+                    println!("Inserted {} cards", cnt);
+                }
+                _ => {
+                    println!("Unknown kind: {}", kind);
                 }
             }
-            println!("Inserted {} cards", cnt);
         }
-        "list_cards" => {
-            // Query cards
-            let cards = db.get_cards()?;
-            for (card, rarity) in cards {
-                println!("{:?} | Rarity: {}", card, rarity);
+        Command::List {
+            kind,
+            series,
+            formatter,
+        } => {
+            match kind.as_str() {
+                "cards" => {
+                    let cards = db.get_cards()?;
+                    for (card, rarity) in cards {
+                        println!("{:?} | Rarity: {}", card, rarity);
+                    }
+                }
+                "series" => {
+                    let series_name = series.expect("--series is required for list series");
+
+                    // Query cards
+                    let cards = db.get_cards_by_series(&series_name)?;
+                    for (card, rarity, series) in cards {
+                        println!("{}", format_card(&card, &rarity, &series, &formatter));
+                    }
+                }
+                _ => {
+                    println!("Unknown kind: {}", kind);
+                }
             }
         }
-        "list_series" => {
-            let series_name = args
-                .series
-                .as_ref()
-                .ok_or_else(|| "--series is required for list_series")?;
-            // Query cards
-            let cards = db.get_cards_by_series(series_name)?;
-            for (card, rarity, series) in cards {
-                println!("{}", format_card(&card, &rarity, &series, &args.formatter));
+        Command::Collect { id, count } => {
+            if id.len() == 1 {
+                let card_id = &id[0];
+                if let Some(val) = count {
+                    db.set_card_collection_count(card_id, val)?;
+                    println!(
+                        "Card '{}' now has {} copies in your collection.",
+                        card_id, val
+                    );
+                } else {
+                    let new_count = db.collect_card(&card_id)?;
+
+                    println!(
+                        "Card {} now has {} copies in collection.",
+                        card_id, new_count
+                    );
+                }
+            } else {
+                for card_id in id {
+                    let new_count = db.collect_card(&card_id)?;
+                    println!(
+                        "Card {} now has {} copies in collection.",
+                        card_id, new_count
+                    );
+                }
             }
-        }
-        _ => {
-            println!("Unknown modus: {}", args.modus);
         }
     }
 

@@ -104,6 +104,31 @@ impl DatabaseConnection {
         }
     }
 
+    pub fn collect_card(&self, card_id: &str) -> Result<(i32), DbError> {
+        // Use a single SQL statement to increment and return the new value
+        let new_count: i32 = self
+            .conn
+            .query_row(
+                "UPDATE cards
+         SET in_collection = in_collection + 1
+         WHERE number = ?1
+         RETURNING in_collection",
+                params![card_id],
+                |row| row.get(0),
+            )
+            .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
+
+        Ok(new_count)
+    }
+
+    pub fn set_card_collection_count(&self, card_id: &str, value: i32) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE cards SET in_collection = ?1 WHERE number = ?2",
+            params![value, card_id],
+        )?;
+        Ok(())
+    }
+
     /// Query cards with rarity name joined
     pub fn get_cards(&self) -> Result<Vec<(Card, String)>> {
         let mut stmt = self.conn.prepare(

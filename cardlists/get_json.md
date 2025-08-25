@@ -43,5 +43,9 @@ const jsonData = {
 //dump json in console for copying
 console.log(JSON.stringify(jsonData, null, 2));
 ```
-3. Copy to a new json file.
+
+3. Copy to a new json file:
+```ps
+Get-Clipboard | out-file -encoding ascii <filename>.json
+```
 

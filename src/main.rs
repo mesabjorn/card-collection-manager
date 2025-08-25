@@ -121,8 +121,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse(); // Parse CLI arguments
     let dbname = args.dbname;
 
-    println!("{}", dbname);
-
     let db = setup(&dbname)?;
     match args.command {
         Command::Add { kind, filename } => {
@@ -181,6 +179,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             kind,
             series,
             formatter,
+            hide_collected,
         } => {
             match kind.as_str() {
                 "cards" => {
@@ -193,8 +192,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let series_name = series.expect("--series is required for list series");
 
                     // Query cards
-                    let cards = db.get_cards_by_series(&series_name)?;
+                    let cards = db.get_cards_by_seriesname(&series_name)?;
                     for (card, rarity, series) in cards {
+                        if hide_collected && card.in_collection > 0 {
+                            continue;
+                        }
                         println!("{}", format_card(&card, &rarity, &series, &formatter));
                     }
                 }

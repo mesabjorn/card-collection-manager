@@ -31,6 +31,10 @@ pub enum Command {
         #[arg(long)]
         series: Option<String>,
 
+        //if added hides card already in collection
+        #[arg(long)]
+        hide_collected: bool,
+
         /// Custom output formatter, e.g. "{name},{number},{rarity}"
         #[arg(long, default_value = "|{series}|{number}|{name}|")]
         formatter: String,

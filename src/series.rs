@@ -5,3 +5,11 @@ pub struct Series {
     pub release_date: String,
     pub n_cards: i32,
 }
+
+impl std::ops::Deref for Series {
+    type Target = Option<i32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.id
+    }
+}

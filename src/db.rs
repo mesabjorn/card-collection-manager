@@ -104,7 +104,7 @@ impl DatabaseConnection {
         }
     }
 
-    pub fn collect_card(&self, card_id: &str) -> Result<(i32), DbError> {
+    pub fn collect_card(&self, card_id: &str) -> Result<i32, DbError> {
         // Use a single SQL statement to increment and return the new value
         let new_count: i32 = self
             .conn
@@ -154,7 +154,7 @@ impl DatabaseConnection {
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards_by_series(
+    pub fn get_cards_by_seriesname(
         &self,
         series_name: &str,
     ) -> Result<Vec<(Card, String, String)>, DbError> {

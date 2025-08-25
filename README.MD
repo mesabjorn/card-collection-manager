@@ -18,30 +18,30 @@ It allows you to create series, add cards, import from JSON, and list your colle
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/yugioh-cards-list.git
-   cd yugioh-cards-list
+   git clone https://github.com/mesabjorn/card-collection-manager.git
+   cd card-collection-manager
 
 2. Build the project with Cargo:
 `cargo build --release`
 3. Run the binary:
-`./target/release/yugioh-cards-list.exe --help`
+`./target/release/card-collection-manager.exe --help`
 
 # General Syntax
-`yugioh-cards-list <DB_NAME> --modus <mode> [OPTIONS]`
+`card-collection-manager <DB_NAME> --modus <mode> [OPTIONS]`
 ## Supported modes:
 1.  add_series: Add a new series interactively:  
-`yugioh-cards-list mycards.db --modus add_series`  
+`card-collection-manager mycards.db --modus add_series`  
 Prompts you for: series name, release date, number of cards.
 2. add_card: Add a new card interactively:  
-`yugioh-cards-list mycards.db --modus add_card`
+`card-collection-manager mycards.db --modus add_card`
 Prompts you for: card name, series number (e.g. LOB-EN000), series ID, rarity ID, collection number.
 3. Import series & cards from JSON:  
-`yugioh-cards-list mycards.db --modus add_json --filename cards.json`
+`card-collection-manager mycards.db --modus add_json --filename cards.json`
 4. List all cards:  
-`yugioh-cards-list mycards.db --modus list_cards`
+`card-collection-manager mycards.db --modus list_cards`
 5. List cards by series:
-`yugioh-cards-list mycards.db --modus list_series --series "Legend of Blue Eyes White Dragon"`  
+`card-collection-manager mycards.db --modus list_series --series "Legend of Blue Eyes White Dragon"`  
 5.1 With custom formatter:  
-`yugioh-cards-list mycards.db --modus list_series --series "Legend of Blue Eyes White Dragon" --formatter "{series} - {number}: {name} [{rarity}]"`
+`card-collection-manager mycards.db --modus list_series --series "Legend of Blue Eyes White Dragon" --formatter "{series} - {number}: {name} [{rarity}]"`
 
 

@@ -86,6 +86,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
+name = "card-collection-manager"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "rusqlite",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -623,14 +634,3 @@ name = "windows_x86_64_msvc"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
-
-[[package]]
-name = "yugioh-cards-list"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "rusqlite",
- "serde",
- "serde_json",
-]

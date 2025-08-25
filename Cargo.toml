@@ -1,5 +1,5 @@
 [package]
-name = "yugioh-cards-list"
+name = "card-collection-manager"
 version = "0.1.0"
 edition = "2024"
 

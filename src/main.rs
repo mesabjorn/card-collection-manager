@@ -13,6 +13,7 @@ mod jsoncards;
 mod series;
 
 use clap::Parser;
+use open;
 
 use crate::{card::Card, cli::Args, cli::Command, db::DatabaseConnection, series::Series};
 
@@ -123,6 +124,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let db = setup(&dbname)?;
     match args.command {
+        Command::Init {} => {
+            println!("Initialized tables in database")
+        }
         Command::Add { kind, filename } => {
             match kind.as_str() {
                 "series" => {
@@ -188,7 +192,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }
-                "series" => {
+                "serie" => {
                     let series_name = series.expect("--series is required for list series");
 
                     // Query cards
@@ -198,6 +202,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                             continue;
                         }
                         println!("{}", format_card(&card, &rarity, &series, &formatter));
+                    }
+                }
+                "series" => {
+                    // list current unique series in db
+                    let series_list = db.get_unique_series()?;
+                    let mut cnt = 1;
+                    if series_list.len() == 0 {
+                        println!("No series in current database");
+                    }
+                    for s in series_list {
+                        println!(
+                            "{}. {} ({}) - {} cards",
+                            cnt, s.name, s.release_date, s.n_cards
+                        );
+                        cnt += 1;
                     }
                 }
                 _ => {
@@ -231,6 +250,29 @@ fn main() -> Result<(), Box<dyn Error>> {
                     );
                 }
             }
+        }
+        Command::Browse { query } => {
+            //replace spaces and capitalize
+            let skip = ["the", "of"];
+            let result: String = query
+                .split_whitespace() // split into words
+                .map(|word| {
+                    if skip.contains(&word) {
+                        word.to_string() // keep as-is (lowercase)
+                    } else {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            Some(first) => {
+                                first.to_uppercase().collect::<String>() + chars.as_str()
+                            }
+                            None => String::new(),
+                        }
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("_");
+            let url = format!("https://yugioh.fandom.com/wiki/{}", result);
+            open::that(url)?
         }
     }
 

@@ -226,4 +226,21 @@ impl DatabaseConnection {
             Err(e) => Err(DbError::SqliteError(e)),
         }
     }
+
+    pub fn get_unique_series(&self) -> Result<Vec<Series>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT id, name, n_cards, release_date FROM series")?;
+
+        let series_iter = stmt.query_map([], |row| {
+            Ok(Series {
+                id: Some(row.get(0)?),
+                name: row.get(1)?,
+                n_cards: row.get(2)?,
+                release_date: row.get(3)?,
+            })
+        })?;
+
+        Ok(series_iter.filter_map(Result::ok).collect())
+    }
 }

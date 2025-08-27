@@ -12,6 +12,8 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    Init {},
+
     /// Add entities (series, cards, json)
     Add {
         /// Kind of entity to add [series | cards | json]        
@@ -49,5 +51,9 @@ pub enum Command {
         /// If a single card is given, set `in_collection` to this value
         #[arg(long)]
         count: Option<i32>,
+    },
+    Browse {
+        #[arg(long)]
+        query: String,
     },
 }

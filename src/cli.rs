@@ -29,9 +29,9 @@ pub enum Command {
         /// Kind of entity to list [series | cards]
         kind: String,
 
-        /// Optional series name filter (for list cards)
+        /// series name filter (for list series)
         #[arg(long)]
-        series: Option<String>,
+        name: Option<String>,
 
         //if added hides card already in collection
         #[arg(long)]
@@ -52,8 +52,11 @@ pub enum Command {
         #[arg(long)]
         count: Option<i32>,
     },
-    Browse {
+    Find {
+        /// Kind of entity to list [series | cards]
+        kind: String,
+
         #[arg(long)]
-        query: String,
+        query: Option<String>,
     },
 }

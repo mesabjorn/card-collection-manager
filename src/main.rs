@@ -181,19 +181,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::List {
             kind,
-            series,
+            name,
             formatter,
             hide_collected,
         } => {
             match kind.as_str() {
                 "cards" => {
-                    let cards = db.get_cards()?;
+                    let cards = db.get_cards(None)?;
                     for (card, rarity) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }
                 "serie" => {
-                    let series_name = series.expect("--series is required for list series");
+                    let series_name = name.expect("--name is required for list series");
 
                     // Query cards
                     let cards = db.get_cards_by_seriesname(&series_name)?;
@@ -251,28 +251,42 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        Command::Browse { query } => {
-            //replace spaces and capitalize
-            let skip = ["the", "of"];
-            let result: String = query
-                .split_whitespace() // split into words
-                .map(|word| {
-                    if skip.contains(&word) {
-                        word.to_string() // keep as-is (lowercase)
-                    } else {
-                        let mut chars = word.chars();
-                        match chars.next() {
-                            Some(first) => {
-                                first.to_uppercase().collect::<String>() + chars.as_str()
-                            }
-                            None => String::new(),
-                        }
+        Command::Find { kind, query } => {
+            match kind.as_str() {
+                "cards" => {
+                    let cards = db.get_cards(query.as_deref())?;
+                    for (card, rarity) in cards {
+                        println!("{:?} | Rarity: {}", card, rarity);
                     }
-                })
-                .collect::<Vec<_>>()
-                .join("_");
-            let url = format!("https://yugioh.fandom.com/wiki/{}", result);
-            open::that(url)?
+                }
+                "serie" => {
+                    let q = query.expect("--query is required for find serie");
+                    let skip = ["the", "of"];
+                    let result: String = q
+                        .split_whitespace() // split into words
+                        .map(|word| {
+                            if skip.contains(&word) {
+                                word.to_string() // keep as-is (lowercase)
+                            } else {
+                                let mut chars = word.chars();
+                                match chars.next() {
+                                    Some(first) => {
+                                        first.to_uppercase().collect::<String>() + chars.as_str()
+                                    }
+                                    None => String::new(),
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("_");
+                    let url = format!("https://yugioh.fandom.com/wiki/{}", result);
+                    open::that(url)?
+                }
+
+                _ => {
+                    println!("Unsupport find command.")
+                }
+            } //replace spaces and capitalize
         }
     }
 

@@ -130,14 +130,20 @@ impl DatabaseConnection {
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards(&self) -> Result<Vec<(Card, String)>> {
+    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String)>> {
+        let pattern = match query {
+            Some(q) => format!("%{}%", q),
+            None => "%".to_string(), // matches everything
+        };
+
         let mut stmt = self.conn.prepare(
             "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, r.name
              FROM cards c
-             JOIN rarity r ON c.rarity_id = r.id",
+             JOIN rarity r ON c.rarity_id = r.id
+             where c.name LIKE ?1",
         )?;
 
-        let card_iter = stmt.query_map([], |row| {
+        let card_iter = stmt.query_map([pattern.as_str()], |row| {
             let card = Card {
                 name: row.get(0)?,
                 series_id: row.get(1)?,

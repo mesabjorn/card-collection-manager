@@ -3,10 +3,27 @@ use rusqlite::{Connection, Result, params};
 
 use crate::card::Card;
 use crate::dberror::DbError;
+
+use crate::get_series_and_number;
 use crate::series::Series;
 
 pub struct DatabaseConnection {
     conn: Connection,
+}
+
+// Helper function to parse a card range like "LOB-001-010"
+fn parse_card_range(card_id: &str) -> Option<(&str, i32, i32)> {
+    // Expect format: PREFIX-START-END
+    // Returns PREFIX,start,end
+
+    let parts: Vec<&str> = card_id.split('-').collect();
+
+    if parts.len() == 3 {
+        let (_, start) = get_series_and_number(parts[1]);
+        let (_, end) = get_series_and_number(parts[2]);
+        return Some((parts[0], start, end));
+    }
+    None
 }
 
 impl DatabaseConnection {
@@ -104,8 +121,44 @@ impl DatabaseConnection {
         }
     }
 
-    pub fn collect_card(&self, card_id: &str) -> Result<i32, DbError> {
+    pub fn collect_card(&self, card_id: &str, count: Option<i32>) -> Result<i32, DbError> {
+        // Check if the card_id contains a range (e.g., "LOB-001-010")
+        if let Some((prefix, start, end)) = parse_card_range(card_id) {
+            // Update all cards in the range
+            let mut total_updated = 0;
+            for num in start..=end {
+                let card_number = format!("{}-{:03}", prefix, num);
+                let new_count: i32 = if let Some(c) = count {
+                    println!("Updating '{}' to {}", card_number, c);
+                    self.conn
+                        .query_row(
+                            "UPDATE cards
+                 SET in_collection = ?1
+                 WHERE number = ?2
+                 RETURNING in_collection",
+                            params![c, card_number],
+                            |row| row.get(0),
+                        )
+                        .map_err(DbError::from)?
+                } else {
+                    self.conn
+                        .query_row(
+                            "UPDATE cards
+                 SET in_collection = in_collection + 1
+                 WHERE number = ?1
+                 RETURNING in_collection",
+                            params![card_number],
+                            |row| row.get(0),
+                        )
+                        .map_err(DbError::from)?
+                };
+                total_updated += new_count;
+            }
+            return Ok(total_updated);
+        }
+
         // Use a single SQL statement to increment and return the new value
+
         let new_count: i32 = self
             .conn
             .query_row(

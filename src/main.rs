@@ -17,12 +17,25 @@ use open;
 
 use crate::{card::Card, cli::Args, cli::Command, db::DatabaseConnection, series::Series};
 
-fn get_collection_number_from_string(s: &str) -> i32 {
-    s.rsplit(|c: char| !c.is_ascii_digit()) // split from the end by non-digits
-        .next() // take the first numeric chunk from the end
-        .unwrap_or("0") // fallback if none
-        .parse::<i32>() // parse as integer
-        .unwrap_or(0)
+pub fn get_series_and_number(s: &str) -> (String, i32) {
+    // Find the position where the numeric part starts from the end
+    let pos = s
+        .rfind(|c: char| c.is_ascii_digit())
+        .map(|last_digit_idx| {
+            // Find the start of the contiguous digit block
+            s[..=last_digit_idx]
+                .rfind(|c: char| !c.is_ascii_digit())
+                .map_or(0, |idx| idx + 1)
+        })
+        .unwrap_or(s.len());
+
+    let (prefix, num_str) = s.split_at(pos);
+    let number = num_str.parse::<i32>().unwrap_or(0);
+
+    // Take only the part before the first hyphen
+    let abbr = prefix.split('-').next().unwrap_or("").to_string();
+
+    (abbr, number)
 }
 
 fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
@@ -159,10 +172,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let series_id = db.insert_series(&series)?;
                     let mut cnt = 0;
                     for c in series_json.cards {
+                        let (abbr, collection_number) = get_series_and_number(&c.card_number);
                         let card = Card {
                             name: c.name.clone(),
-                            number: c.card_number.clone(),
-                            collection_number: get_collection_number_from_string(&c.card_number),
+                            number: format!("{}-{:03}", abbr, collection_number),
+                            collection_number: collection_number,
                             rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
                             series_id: series_id,
                             in_collection: 0,
@@ -225,25 +239,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         Command::Collect { id, count } => {
+            //for collecting card id's (e.g. PSV-EN001)
             if id.len() == 1 {
                 let card_id = &id[0];
-                if let Some(val) = count {
-                    db.set_card_collection_count(card_id, val)?;
-                    println!(
-                        "Card '{}' now has {} copies in your collection.",
-                        card_id, val
-                    );
-                } else {
-                    let new_count = db.collect_card(&card_id)?;
 
-                    println!(
-                        "Card {} now has {} copies in collection.",
-                        card_id, new_count
-                    );
-                }
+                let new_count = db.collect_card(&card_id, count)?;
+
+                println!(
+                    "Card '{}' now has {} copies in collection.",
+                    card_id, new_count
+                );
             } else {
                 for card_id in id {
-                    let new_count = db.collect_card(&card_id)?;
+                    let new_count = db.collect_card(&card_id, count)?;
                     println!(
                         "Card {} now has {} copies in collection.",
                         card_id, new_count

@@ -4,18 +4,24 @@ use std::{
 };
 
 mod card;
-mod db;
-mod rarity;
-
 mod cli;
+mod copy;
+mod db;
 mod dberror; //custom db errors
 mod jsoncards;
+mod rarity;
 mod series;
 
 use clap::Parser;
 use open;
 
-use crate::{card::Card, cli::Args, cli::Command, db::DatabaseConnection, series::Series};
+use crate::{
+    card::Card,
+    cli::{Args, Command},
+    copy::add_file_to_clipboard,
+    db::DatabaseConnection,
+    series::Series,
+};
 
 pub fn get_series_and_number(s: &str) -> (String, i32) {
     // Find the position where the numeric part starts from the end
@@ -140,7 +146,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Init {} => {
             println!("Initialized tables in database")
         }
-        Command::Add { kind, filename } => {
+        Command::Add {
+            kind,
+            name,
+            filename,
+        } => {
             match kind.as_str() {
                 "series" => {
                     let series = prompt_user_series()?;
@@ -187,6 +197,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                         }
                     }
                     println!("Inserted {} cards", cnt);
+                }
+                "rarity" => {
+                    let n = name.expect("--name for rarity is required");
+                    db.insert_rarity(&n)?;
+                    println!("Inserted rarity '{}'", n);
                 }
                 _ => {
                     println!("Unknown kind: {}", kind);
@@ -288,7 +303,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .collect::<Vec<_>>()
                         .join("_");
                     let url = format!("https://yugioh.fandom.com/wiki/{}", result);
-                    open::that(url)?
+                    open::that(url)?;
+
+                    add_file_to_clipboard("./cardlists/get_series.js").unwrap();
                 }
 
                 _ => {

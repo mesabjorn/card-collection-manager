@@ -174,14 +174,6 @@ impl DatabaseConnection {
         Ok(new_count)
     }
 
-    pub fn set_card_collection_count(&self, card_id: &str, value: i32) -> Result<(), DbError> {
-        self.conn.execute(
-            "UPDATE cards SET in_collection = ?1 WHERE number = ?2",
-            params![value, card_id],
-        )?;
-        Ok(())
-    }
-
     /// Query cards with rarity name joined
     pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String)>> {
         let pattern = match query {

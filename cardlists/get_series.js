@@ -4,6 +4,9 @@ function filterRarity(text) {
     if (text.indexOf("Short Print") > -1) {
         return "Common";
     }
+    if (text.indexOf("\n")>-1){
+        text = text.split("\n")[0];
+    }
     return text.trim();
 }
 

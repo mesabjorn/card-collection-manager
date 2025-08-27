@@ -22,6 +22,8 @@ pub enum Command {
         /// JSON file with cards (required for add json)
         #[arg(short, long)]
         filename: Option<String>,
+
+        name: Option<String>,
     },
 
     /// List entities (series, cards)

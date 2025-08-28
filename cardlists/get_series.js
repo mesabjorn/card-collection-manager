@@ -10,7 +10,12 @@ function filterRarity(text) {
     return text.trim();
 }
 
-function tableToJson(tableId) {
+String.prototype.capitalize= function(){
+    //capitalize each word in string
+    return this.split(" ").map(word=>{return word.slice(0,1).toUpperCase()+word.slice(1)}).join(" ");
+}
+
+function tableToJson() {
     const table = document.querySelectorAll("table.card-list")[0];
     const rows = Array.from(table.querySelectorAll("tbody tr"));
 
@@ -20,7 +25,7 @@ function tableToJson(tableId) {
             card_number: cells[0]?.innerText.trim() || "",
             name: cells[1]?.innerText.replace(/"/g, "").trim() || "",
             rarity: cells[2] ? filterRarity(cells[2].innerText) : "",
-            category: cells[3]?.innerText.trim() || ""
+            category: cells[3]?.innerText.trim().capitalize() || ""
         };
     });
 }

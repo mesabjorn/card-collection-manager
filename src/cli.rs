@@ -16,30 +16,39 @@ pub enum Command {
 
     /// Add entities (series, cards, json)
     Add {
-        /// Kind of entity to add [series | cards | json]        
+        /// Kind of entity to add [series | cards | json | rarity]        
         kind: String,
 
         /// JSON file with cards (required for add json)
         #[arg(short, long)]
         filename: Option<String>,
 
+        /// name for add rarity
         name: Option<String>,
     },
 
     /// List entities (series, cards)
     List {
-        /// Kind of entity to list [series | cards]
+        /// Kind of entity to list [series | cards | serie]
         kind: String,
 
-        /// series name filter (for list series)
+        /// series name filter (for list serie)
         #[arg(long)]
         name: Option<String>,
 
-        //if added hides card already in collection
+        //hides card already in collection (defaults to false)
         #[arg(long)]
         hide_collected: bool,
 
         /// Custom output formatter, e.g. "{name},{number},{rarity}"
+        /// Format options:
+        /// {name}=card name
+        /// {number}=card number
+        /// {collection_number}=unique collection id
+        /// {rarity}=rarity name
+        /// {series}=series name
+        /// {card_type}=card type
+        /// {in_collection}=copies in collection
         #[arg(long, default_value = "|{series}|{number}|{name}|")]
         formatter: String,
     },
@@ -50,12 +59,18 @@ pub enum Command {
         #[arg(long, num_args = 1..)]
         id: Vec<String>,
 
-        /// If a single card is given, set `in_collection` to this value
+        /// Set all cards to this number of cards in the collection
         #[arg(long)]
         count: Option<i32>,
     },
+    /// Sell a card
+    Sell {
+        /// Card ID to sell
+        #[arg(long, num_args = 1..)]
+        id: Vec<String>,
+    },
     Find {
-        /// Kind of entity to list [series | cards]
+        /// Kind of entity to list [serie | cards]
         kind: String,
 
         #[arg(long)]

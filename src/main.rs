@@ -54,7 +54,23 @@ fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
     db.insert_rarity("Super Rare")?;
     db.insert_rarity("Ultra Rare")?;
     db.insert_rarity("Secret Rare")?;
+    db.insert_rarity("Starlight Rare")?;
     db.insert_rarity("Quarter Century Rare")?;
+
+    // Insert card types
+    db.insert_card_type("Spell Card", "Normal")?;
+    db.insert_card_type("Spell Card", "Equip")?;
+    db.insert_card_type("Spell Card", "Field")?;
+    db.insert_card_type("Spell Card", "Quick-Play")?;
+    db.insert_card_type("Monster", "Normal")?;
+    db.insert_card_type("Monster", "Flip")?;
+    db.insert_card_type("Monster", "Effect")?;
+    db.insert_card_type("Monster", "Union")?;
+    db.insert_card_type("Fusion Monster", "Normal")?;
+    db.insert_card_type("Fusion Monster", "Effect")?;
+    db.insert_card_type("Trap Card", "Normal")?;
+    db.insert_card_type("Trap Card", "Continuous")?;
+    db.insert_card_type("Trap Card", "Counter")?;
 
     Ok(db)
 }
@@ -100,13 +116,13 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
     let number = card_number.trim().to_string();
 
     let mut series_id = String::new();
-    print!("Enter series id: ");
+    print!("Enter series id (numeric): ");
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut series_id).unwrap();
     let series_id: i32 = series_id.trim().parse().unwrap_or(0);
 
     let mut rarity_id = String::new();
-    print!("Enter rarity id: ");
+    print!("Enter rarity id (numeric): ");
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut rarity_id).unwrap();
     let rarity_id: i32 = rarity_id.trim().parse().unwrap_or(0);
@@ -117,6 +133,12 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
     io::stdin().read_line(&mut collection_number).unwrap();
     let collection_number: i32 = collection_number.trim().parse().unwrap_or(0);
 
+    let mut card_type_id = String::new();
+    print!("Enter rarity id (numeric): ");
+    io::stdout().flush().unwrap();
+    io::stdin().read_line(&mut card_type_id).unwrap();
+    let card_type_id: i32 = card_type_id.trim().parse().unwrap_or(0);
+
     Ok(Card {
         name,
         series_id,
@@ -124,16 +146,24 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
         collection_number: collection_number,
         in_collection: 0,
         rarity_id,
+        card_type_id,
     })
 }
 
-fn format_card(card: &Card, rarity: &str, series: &str, formatter: &str) -> String {
+fn format_card(
+    card: &Card,
+    rarity: &str,
+    series: &str,
+    card_type: &str,
+    formatter: &str,
+) -> String {
     formatter
         .replace("{name}", &card.name)
         .replace("{number}", &card.number)
         .replace("{collection_number}", &card.collection_number.to_string())
         .replace("{rarity}", rarity)
         .replace("{series}", series)
+        .replace("{card_type}", card_type)
         .replace("{in_collection}", &card.in_collection.to_string())
 }
 
@@ -164,7 +194,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "json" => {
                     // Validate that filename is provided
-                    let filename = filename.expect("--filename is required for add json");
+                    let filename = filename.expect("--filename is required for 'add json'");
 
                     let file = std::fs::File::open(filename)?;
                     let reader = BufReader::new(file);
@@ -190,6 +220,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
                             series_id: series_id,
                             in_collection: 0,
+                            card_type_id: db.get_card_type_id(&c.category)?,
                         };
                         let inserted_id = db.insert_card(&card)?;
                         if inserted_id != 0 {
@@ -226,11 +257,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     // Query cards
                     let cards = db.get_cards_by_seriesname(&series_name)?;
-                    for (card, rarity, series) in cards {
+                    for (card, rarity, series, card_type) in cards {
                         if hide_collected && card.in_collection > 0 {
                             continue;
                         }
-                        println!("{}", format_card(&card, &rarity, &series, &formatter));
+                        println!(
+                            "{}",
+                            format_card(&card, &rarity, &series, &card_type, &formatter)
+                        );
                     }
                 }
                 "series" => {
@@ -242,11 +276,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     for s in series_list {
                         println!(
-                            "{}. {} ({}) - {} cards",
+                            "{}. {} | {} | {} cards",
                             cnt, s.name, s.release_date, s.n_cards
                         );
                         cnt += 1;
                     }
+                }
+                "rarities" => {
+                    println!("Not yet implemented...");
+                }
+                "cardtypes" => {
+                    println!("Not yet implemented...");
                 }
                 _ => {
                     println!("Unknown kind: {}", kind);
@@ -274,16 +314,38 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        Command::Sell { id } => {
+            //for collecting card id's (e.g. PSV-EN001)
+            if id.len() == 1 {
+                let card_id = &id[0];
+
+                let new_count = db.sell_card(&card_id)?;
+
+                println!(
+                    "Card removed. Card '{}' now has {} copies in collection.",
+                    card_id, new_count
+                );
+            } else {
+                for card_id in id {
+                    let new_count = db.sell_card(&card_id)?;
+                    println!(
+                        "Card removed. Card {} now has {} copies in collection.",
+                        card_id, new_count
+                    );
+                }
+            }
+        }
         Command::Find { kind, query } => {
             match kind.as_str() {
                 "cards" => {
-                    let cards = db.get_cards(query.as_deref())?;
+                    let q = query.expect("--query is required for 'find cards --query query'");
+                    let cards = db.get_cards(Some(q.as_str()))?;
                     for (card, rarity) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }
                 "serie" => {
-                    let q = query.expect("--query is required for find serie");
+                    let q = query.expect("--query is required for 'find serie --query query'");
                     let skip = ["the", "of"];
                     let result: String = q
                         .split_whitespace() // split into words
@@ -309,7 +371,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
 
                 _ => {
-                    println!("Unsupport find command.")
+                    println!("Unsupport find command. Use 'find cards|serie --query query'")
                 }
             } //replace spaces and capitalize
         }

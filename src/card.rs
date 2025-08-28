@@ -6,4 +6,5 @@ pub struct Card {
     pub collection_number: i32,
     pub in_collection: i32,
     pub rarity_id: i32,
+    pub card_type_id: i32,
 }

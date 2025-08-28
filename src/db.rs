@@ -4,8 +4,9 @@ use rusqlite::{Connection, Result, params};
 use crate::card::Card;
 use crate::dberror::DbError;
 
-use crate::get_series_and_number;
 use crate::series::Series;
+use crate::{get_series_and_number, main};
+use rusqlite::OptionalExtension; // <- import this
 
 pub struct DatabaseConnection {
     conn: Connection,
@@ -44,6 +45,16 @@ impl DatabaseConnection {
         )?;
 
         self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS card_type (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                maintype TEXT NOT NULL,  
+                subtype TEXT,
+                UNIQUE (maintype, subtype) -- unique constraint for the two columns together
+            )",
+            [],
+        )?;
+
+        self.conn.execute(
             "CREATE TABLE IF NOT EXISTS series (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
@@ -60,10 +71,12 @@ impl DatabaseConnection {
                 series_id INTEGER NOT NULL,
                 collection_number INTEGER NOT NULL,
                 number TEXT NOT NULL UNIQUE,
-                in_collection BOOLEAN NOT NULL DEFAULT 0,
+                in_collection INTEGER NOT NULL DEFAULT 0,
                 rarity_id INTEGER NOT NULL,
+                card_type_id INTEGER NOT NULL,
                 FOREIGN KEY (rarity_id) REFERENCES rarity(id)
                 FOREIGN KEY (series_id) REFERENCES series(id)
+                FOREIGN KEY (card_type_id) REFERENCES card_type(id)
             )",
             [],
         )?;
@@ -75,6 +88,14 @@ impl DatabaseConnection {
         self.conn.execute(
             "INSERT OR IGNORE INTO rarity (name) VALUES (?1)",
             params![name],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_card_type(&self, main_type: &str, sub_type: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO card_type (maintype,subtype) VALUES (?1,?2)",
+            params![main_type, sub_type],
         )?;
         Ok(())
     }
@@ -101,15 +122,16 @@ impl DatabaseConnection {
         let series = self.get_series_by_id(card.series_id)?;
 
         match self.conn.execute(
-            "INSERT INTO cards (name, series_id, number, collection_number, in_collection, rarity_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO cards (name, series_id, number, collection_number, in_collection, rarity_id,card_type_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 card.name,
                 card.series_id,
                 card.number,
                 card.collection_number,
                 card.in_collection,
-                card.rarity_id
+                card.rarity_id,
+                card.card_type_id
             ],
         ) {
             Ok(_) => Ok(self.conn.last_insert_rowid() as i32),
@@ -133,9 +155,9 @@ impl DatabaseConnection {
                     self.conn
                         .query_row(
                             "UPDATE cards
-                 SET in_collection = ?1
-                 WHERE number = ?2
-                 RETURNING in_collection",
+                            SET in_collection = ?1
+                            WHERE number = ?2
+                            RETURNING in_collection",
                             params![c, card_number],
                             |row| row.get(0),
                         )
@@ -144,9 +166,9 @@ impl DatabaseConnection {
                     self.conn
                         .query_row(
                             "UPDATE cards
-                 SET in_collection = in_collection + 1
-                 WHERE number = ?1
-                 RETURNING in_collection",
+                        SET in_collection = in_collection + 1
+                        WHERE number = ?1
+                        RETURNING in_collection",
                             params![card_number],
                             |row| row.get(0),
                         )
@@ -174,30 +196,74 @@ impl DatabaseConnection {
         Ok(new_count)
     }
 
+    pub fn sell_card(&self, card_id: &str) -> Result<i32, DbError> {
+        // Helper closure to update a single card
+        let sell_single = |conn: &rusqlite::Connection, number: &str| -> Result<i32, DbError> {
+            let new_count: Option<i32> = conn
+                .query_row(
+                    "UPDATE cards
+                 SET in_collection = in_collection - 1
+                 WHERE number = ?1 AND in_collection > 0
+                 RETURNING in_collection",
+                    params![number],
+                    |row| row.get(0),
+                )
+                .optional() // returns None if no rows updated
+                .map_err(DbError::from)?;
+
+            match new_count {
+                Some(count) => Ok(count),
+                None => Err(DbError::InvalidOperation(format!(
+                    "Cannot sell card '{}': count is 0 or card does not exist",
+                    number
+                ))),
+            }
+        };
+
+        // Range case (e.g., "LOB-001-010")
+        if let Some((prefix, start, end)) = parse_card_range(card_id) {
+            let mut total_updated = 0;
+
+            for num in start..=end {
+                let card_number = format!("{}-{:03}", prefix, num);
+                println!("Selling '{}'", card_number);
+                total_updated += sell_single(&self.conn, &card_number)?;
+            }
+
+            return Ok(total_updated);
+        }
+
+        // Single card case
+        sell_single(&self.conn, card_id)
+    }
+
     /// Query cards with rarity name joined
     pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String)>> {
         let pattern = match query {
             Some(q) => format!("%{}%", q),
             None => "%".to_string(), // matches everything
         };
+        // println!("query: {}", pattern);
 
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, r.name
+            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name
              FROM cards c
              JOIN rarity r ON c.rarity_id = r.id
+             JOIN card_type t ON c.card_type_id = t.id
              where c.name LIKE ?1",
         )?;
 
-        let card_iter = stmt.query_map([pattern.as_str()], |row| {
+        let card_iter = stmt.query_map([pattern], |row| {
             let card = Card {
                 name: row.get(0)?,
                 series_id: row.get(1)?,
                 number: row.get(2)?,
                 collection_number: row.get(3)?,
                 in_collection: row.get(4)?,
+                card_type_id: row.get(6)?,
                 rarity_id: row.get(5)?,
             };
-            let rarity_name: String = row.get(6)?;
+            let rarity_name: String = row.get(7)?;
             Ok((card, rarity_name))
         })?;
 
@@ -208,19 +274,18 @@ impl DatabaseConnection {
     pub fn get_cards_by_seriesname(
         &self,
         series_name: &str,
-    ) -> Result<Vec<(Card, String, String)>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT c.name, c.number, c.collection_number, c.in_collection,
-                r.name, s.name, c.series_id, c.rarity_id
-         FROM cards c
-         JOIN rarity r ON c.rarity_id = r.id
-         JOIN series s ON c.series_id = s.id
-         WHERE s.name = ?1",
-            )
-            .map_err(DbError::SqliteError)?;
+    ) -> Result<Vec<(Card, String, String, String)>, DbError> {
+        let sql = "SELECT c.name, c.number, c.collection_number, c.in_collection, c.series_id, c.rarity_id, c.card_type_id, r.name, s.name, t.maintype,t.subtype
+            FROM cards c
+            JOIN rarity r ON c.rarity_id = r.id
+            JOIN series s ON c.series_id = s.id
+            JOIN card_type t ON c.card_type_id = t.id
+            WHERE s.name = ?1
+            COLLATE NOCASE";
+        let mut stmt = self.conn.prepare(sql)?;
+        // println!("Executing SQL:\n{}\nWith param: '{}'", sql, series_name);
 
+        // println!("'{:?}'", stmt);
         let card_iter = stmt
             .query_map([series_name], |row| {
                 let card = Card {
@@ -228,12 +293,16 @@ impl DatabaseConnection {
                     number: row.get(1)?,
                     collection_number: row.get(2)?,
                     in_collection: row.get(3)?,
-                    rarity_id: row.get(7)?,
-                    series_id: row.get(6)?,
+                    series_id: row.get(4)?,
+                    rarity_id: row.get(5)?,
+                    card_type_id: row.get(6)?,
                 };
-                let rarity_name: String = row.get(4)?;
-                let series_name: String = row.get(5)?;
-                Ok((card, rarity_name, series_name))
+                let rarity_name: String = row.get(7)?;
+                let series_name: String = row.get(8)?;
+                let card_type: String =
+                    format!("{} {}", row.get::<_, String>(10)?, row.get::<_, String>(9)?);
+
+                Ok((card, rarity_name, series_name, card_type))
             })
             .map_err(DbError::SqliteError)?;
 
@@ -274,6 +343,29 @@ impl DatabaseConnection {
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 Err(DbError::UnknownSeries(id.to_string()))
             }
+            Err(e) => Err(DbError::SqliteError(e)),
+        }
+    }
+
+    pub fn get_card_type_id(&self, name: &str) -> Result<i32, DbError> {
+        //expect names like "Continuous Spell Card" or "Effect Fusion Monster"
+        //take first word as subtype
+        //take all the rest as main type:
+        // "Continuous Spell Card" -> maintype: Spell Card, subtype: Continuous
+        // "Effect Fusion Monster" -> maintype: Fusion Monster, subtype: Effect
+        let mut parts = name.splitn(2, ' '); // split into at most 2 parts
+        let subtype = parts.next().unwrap_or("");
+        let maintype = parts.next().unwrap_or("");
+
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM card_type WHERE maintype = ?1 and subtype = ?2")?;
+        match stmt.query_one([maintype, subtype], |r| Ok(r.get(0)?)) {
+            Ok(id) => Ok(id),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Err(DbError::UnknownCardType(format!(
+                "{},{}",
+                maintype, subtype
+            ))),
             Err(e) => Err(DbError::SqliteError(e)),
         }
     }

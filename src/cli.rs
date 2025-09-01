@@ -16,14 +16,14 @@ pub enum Command {
 
     /// Add entities (series, cards, json)
     Add {
-        /// Kind of entity to add [series | cards | json | rarity]        
+        /// Kind of entity to add [series | cards | json | rarity| card-type]
         kind: String,
 
         /// JSON file with cards (required for add json)
         #[arg(short, long)]
         filename: Option<String>,
 
-        /// name for add rarity
+        /// name for add rarity or card-type
         name: Option<String>,
     },
 

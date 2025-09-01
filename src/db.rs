@@ -59,6 +59,7 @@ impl DatabaseConnection {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         release_date DATE NOT NULL,
+        abbreviation TEXT,
         n_cards INTEGER NOT NULL DEFAULT 0
         )",
             [],
@@ -181,19 +182,34 @@ impl DatabaseConnection {
 
         // Use a single SQL statement to increment and return the new value
 
-        let new_count: i32 = self
-            .conn
-            .query_row(
-                "UPDATE cards
-         SET in_collection = in_collection + 1
-         WHERE number = ?1
-         RETURNING in_collection",
-                params![card_id],
-                |row| row.get(0),
-            )
-            .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
-
-        Ok(new_count)
+        if let Some(count) = count {
+            //count specified for individual cards
+            let new_count: i32 = self
+                .conn
+                .query_row(
+                    "UPDATE cards
+                    SET in_collection = in_collection + ?1
+                    WHERE number = ?2
+                    RETURNING in_collection",
+                    params![count, card_id],
+                    |row| row.get(0),
+                )
+                .map_err(DbError::from)?;
+            Ok(new_count)
+        } else {
+            let new_count: i32 = self
+                .conn
+                .query_row(
+                    "UPDATE cards
+                SET in_collection = in_collection + 1
+                WHERE number = ?1
+                RETURNING in_collection",
+                    params![card_id],
+                    |row| row.get(0),
+                )
+                .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
+            Ok(new_count)
+        }
     }
 
     pub fn sell_card(&self, card_id: &str) -> Result<i32, DbError> {
@@ -327,9 +343,9 @@ impl DatabaseConnection {
     }
 
     pub fn get_series_by_id(&self, id: i32) -> Result<Series, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, release_date, n_cards FROM series WHERE id = ?1")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, release_date, n_cards,abbreviation FROM series WHERE id = ?1",
+        )?;
 
         match stmt.query_row([id], |r| {
             Ok(Series {
@@ -337,6 +353,7 @@ impl DatabaseConnection {
                 name: r.get(1)?,
                 release_date: r.get(2)?,
                 n_cards: r.get(3)?,
+                abbreviation: r.get(4)?,
             })
         }) {
             Ok(series) => Ok(series),
@@ -349,14 +366,21 @@ impl DatabaseConnection {
 
     pub fn get_card_type_id(&self, name: &str) -> Result<i32, DbError> {
         //expect names like "Continuous Spell Card" or "Effect Fusion Monster"
-        //take first word as subtype
-        //take all the rest as main type:
+        // take first word as subtype
+        // take all the rest as main type:
         // "Continuous Spell Card" -> maintype: Spell Card, subtype: Continuous
         // "Effect Fusion Monster" -> maintype: Fusion Monster, subtype: Effect
-        let mut parts = name.splitn(2, ' '); // split into at most 2 parts
-        let subtype = parts.next().unwrap_or("");
-        let maintype = parts.next().unwrap_or("");
 
+        let (subtype, maintype);
+
+        if name == "Fusion Monster" {
+            subtype = "Normal";
+            maintype = "Fusion Monster";
+        } else {
+            let mut parts = name.splitn(2, ' '); // split into at most 2 parts
+            subtype = parts.next().unwrap_or("");
+            maintype = parts.next().unwrap_or("");
+        }
         let mut stmt = self
             .conn
             .prepare("SELECT id FROM card_type WHERE maintype = ?1 and subtype = ?2")?;
@@ -373,7 +397,7 @@ impl DatabaseConnection {
     pub fn get_unique_series(&self) -> Result<Vec<Series>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT id, name, n_cards, release_date FROM series")?;
+            .prepare("SELECT DISTINCT id, name, n_cards, release_date,abbreviation FROM series")?;
 
         let series_iter = stmt.query_map([], |row| {
             Ok(Series {
@@ -381,6 +405,7 @@ impl DatabaseConnection {
                 name: row.get(1)?,
                 n_cards: row.get(2)?,
                 release_date: row.get(3)?,
+                abbreviation: row.get(4)?,
             })
         })?;
 

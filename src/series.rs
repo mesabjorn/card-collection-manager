@@ -4,6 +4,7 @@ pub struct Series {
     pub name: String,
     pub release_date: String,
     pub n_cards: i32,
+    pub abbreviation: Option<String>,
 }
 
 impl std::ops::Deref for Series {

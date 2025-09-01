@@ -73,7 +73,6 @@ pub enum Command {
         /// Kind of entity to list [serie | cards]
         kind: String,
 
-        #[arg(long)]
         query: Option<String>,
     },
 }

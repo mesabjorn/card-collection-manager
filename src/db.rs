@@ -106,9 +106,14 @@ impl DatabaseConnection {
             .unwrap_or_else(|_| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
 
         self.conn.execute(
-            "INSERT OR IGNORE INTO series (name, release_date, n_cards)
-         VALUES (?1, ?2, ?3)",
-            params![series.name, release_date.to_string(), series.n_cards],
+            "INSERT OR IGNORE INTO series (name, release_date, n_cards,abbreviation)
+         VALUES (?1, ?2, ?3,?4)",
+            params![
+                series.name,
+                release_date.to_string(),
+                series.n_cards,
+                series.abbreviation
+            ],
         )?;
 
         // Always fetch the id (whether newly inserted or existing)
@@ -376,6 +381,9 @@ impl DatabaseConnection {
         if name == "Fusion Monster" {
             subtype = "Normal";
             maintype = "Fusion Monster";
+        } else if name == "Ritual Monster" {
+            subtype = "Normal";
+            maintype = "Ritual Monster";
         } else {
             let mut parts = name.splitn(2, ' '); // split into at most 2 parts
             subtype = parts.next().unwrap_or("");

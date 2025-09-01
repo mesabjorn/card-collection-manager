@@ -14,4 +14,5 @@ pub struct SeriesJson {
     pub ncards: i32,
     pub release_date: String,
     pub cards: Vec<CardJson>,
+    pub abbreviation: Option<String>,
 }

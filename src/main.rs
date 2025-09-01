@@ -214,7 +214,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         name: series_json.name.clone(),
                         release_date: series_json.release_date,
                         n_cards: series_json.ncards,
-                        abbreviation: None,
+                        abbreviation: Some(series_json.abbreviation.unwrap_or(String::from(""))),
                     };
 
                     let series_id = db.insert_series(&series)?;

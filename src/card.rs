@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Serialize, Deserialize, Clone)]
+
 pub struct Card {
     pub name: String,
     pub series_id: i32,

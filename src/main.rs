@@ -3,77 +3,15 @@ use std::{
     io::{self, BufReader, Write},
 };
 
-mod card;
-mod cli;
-mod copy;
-mod db;
-mod dberror; //custom db errors
-mod jsoncards;
-mod rarity;
-mod series;
-
-use clap::Parser;
 use open;
 
 use crate::{
     card::Card,
     cli::{Args, Command},
     copy::add_file_to_clipboard,
-    db::DatabaseConnection,
+    db::{DatabaseConnection, setup},
     series::Series,
 };
-
-pub fn get_series_and_number(s: &str) -> (String, i32) {
-    // Find the position where the numeric part starts from the end
-    let pos = s
-        .rfind(|c: char| c.is_ascii_digit())
-        .map(|last_digit_idx| {
-            // Find the start of the contiguous digit block
-            s[..=last_digit_idx]
-                .rfind(|c: char| !c.is_ascii_digit())
-                .map_or(0, |idx| idx + 1)
-        })
-        .unwrap_or(s.len());
-
-    let (prefix, num_str) = s.split_at(pos);
-    let number = num_str.parse::<i32>().unwrap_or(0);
-
-    // Take only the part before the first hyphen
-    let abbr = prefix.split('-').next().unwrap_or("").to_string();
-
-    (abbr, number)
-}
-
-fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
-    let db = db::DatabaseConnection::new(dbname)?;
-    db.create_tables()?;
-
-    // Insert rarities
-    db.insert_rarity("Common")?;
-    db.insert_rarity("Rare")?;
-    db.insert_rarity("Super Rare")?;
-    db.insert_rarity("Ultra Rare")?;
-    db.insert_rarity("Secret Rare")?;
-    db.insert_rarity("Starlight Rare")?;
-    db.insert_rarity("Quarter Century Rare")?;
-
-    // Insert card types
-    db.insert_card_type("Spell Card", "Normal")?;
-    db.insert_card_type("Spell Card", "Equip")?;
-    db.insert_card_type("Spell Card", "Field")?;
-    db.insert_card_type("Spell Card", "Quick-Play")?;
-    db.insert_card_type("Monster", "Normal")?;
-    db.insert_card_type("Monster", "Flip")?;
-    db.insert_card_type("Monster", "Effect")?;
-    db.insert_card_type("Monster", "Union")?;
-    db.insert_card_type("Fusion Monster", "Normal")?;
-    db.insert_card_type("Fusion Monster", "Effect")?;
-    db.insert_card_type("Trap Card", "Normal")?;
-    db.insert_card_type("Trap Card", "Continuous")?;
-    db.insert_card_type("Trap Card", "Counter")?;
-
-    Ok(db)
-}
 
 fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     let mut name = String::new();

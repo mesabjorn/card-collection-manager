@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use chrono::NaiveDate;
 use rusqlite::{Connection, Result, params};
 
@@ -5,7 +7,7 @@ use crate::card::Card;
 use crate::dberror::DbError;
 
 use crate::series::Series;
-use crate::{get_series_and_number, main};
+
 use rusqlite::OptionalExtension; // <- import this
 
 pub struct DatabaseConnection {
@@ -25,6 +27,27 @@ fn parse_card_range(card_id: &str) -> Option<(&str, i32, i32)> {
         return Some((parts[0], start, end));
     }
     None
+}
+
+pub fn get_series_and_number(s: &str) -> (String, i32) {
+    // Find the position where the numeric part starts from the end
+    let pos = s
+        .rfind(|c: char| c.is_ascii_digit())
+        .map(|last_digit_idx| {
+            // Find the start of the contiguous digit block
+            s[..=last_digit_idx]
+                .rfind(|c: char| !c.is_ascii_digit())
+                .map_or(0, |idx| idx + 1)
+        })
+        .unwrap_or(s.len());
+
+    let (prefix, num_str) = s.split_at(pos);
+    let number = num_str.parse::<i32>().unwrap_or(0);
+
+    // Take only the part before the first hyphen
+    let abbr = prefix.split('-').next().unwrap_or("").to_string();
+
+    (abbr, number)
 }
 
 impl DatabaseConnection {
@@ -259,7 +282,7 @@ impl DatabaseConnection {
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String)>> {
+    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String, String)>> {
         let pattern = match query {
             Some(q) => format!("%{}%", q),
             None => "%".to_string(), // matches everything
@@ -267,7 +290,7 @@ impl DatabaseConnection {
         // println!("query: {}", pattern);
 
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name
+            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name, t.maintype,t.subtype
              FROM cards c
              JOIN rarity r ON c.rarity_id = r.id
              JOIN card_type t ON c.card_type_id = t.id
@@ -285,7 +308,13 @@ impl DatabaseConnection {
                 rarity_id: row.get(5)?,
             };
             let rarity_name: String = row.get(7)?;
-            Ok((card, rarity_name))
+            let main_type_name: String = row.get(8)?;
+            let sub_type_name: String = row.get(9)?;
+            Ok((
+                card,
+                rarity_name,
+                format!("{} {}", main_type_name, sub_type_name),
+            ))
         })?;
 
         Ok(card_iter.filter_map(Result::ok).collect())
@@ -419,4 +448,35 @@ impl DatabaseConnection {
 
         Ok(series_iter.filter_map(Result::ok).collect())
     }
+}
+
+pub fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
+    let db = DatabaseConnection::new(dbname)?;
+    db.create_tables()?;
+
+    // Insert rarities
+    db.insert_rarity("Common")?;
+    db.insert_rarity("Rare")?;
+    db.insert_rarity("Super Rare")?;
+    db.insert_rarity("Ultra Rare")?;
+    db.insert_rarity("Secret Rare")?;
+    db.insert_rarity("Starlight Rare")?;
+    db.insert_rarity("Quarter Century Rare")?;
+
+    // Insert card types
+    db.insert_card_type("Spell Card", "Normal")?;
+    db.insert_card_type("Spell Card", "Equip")?;
+    db.insert_card_type("Spell Card", "Field")?;
+    db.insert_card_type("Spell Card", "Quick-Play")?;
+    db.insert_card_type("Monster", "Normal")?;
+    db.insert_card_type("Monster", "Flip")?;
+    db.insert_card_type("Monster", "Effect")?;
+    db.insert_card_type("Monster", "Union")?;
+    db.insert_card_type("Fusion Monster", "Normal")?;
+    db.insert_card_type("Fusion Monster", "Effect")?;
+    db.insert_card_type("Trap Card", "Normal")?;
+    db.insert_card_type("Trap Card", "Continuous")?;
+    db.insert_card_type("Trap Card", "Counter")?;
+
+    Ok(db)
 }

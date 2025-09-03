@@ -3,15 +3,16 @@ use std::{
     io::{self, BufReader, Write},
 };
 
-use open;
-
-use crate::{
+use card_collection_manager::{
     card::Card,
     cli::{Args, Command},
     copy::add_file_to_clipboard,
-    db::{DatabaseConnection, setup},
+    db::{get_series_and_number, setup},
+    jsoncards,
     series::Series,
 };
+
+use open;
 
 fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     let mut name = String::new();
@@ -111,9 +112,11 @@ fn format_card(
         .replace("{card_type}", card_type)
         .replace("{in_collection}", &card.in_collection.to_string())
 }
+use clap::{Parser, Subcommand};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse(); // Parse CLI arguments
+    let args = Args::parse();
+
     let dbname = args.dbname;
 
     let db = setup(&dbname)?;
@@ -202,7 +205,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match kind.as_str() {
                 "cards" => {
                     let cards = db.get_cards(None)?;
-                    for (card, rarity) in cards {
+                    for (card, rarity, _type) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }
@@ -294,7 +297,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "cards" => {
                     let q = query.expect("--query is required for 'find cards --query query'");
                     let cards = db.get_cards(Some(q.as_str()))?;
-                    for (card, rarity) in cards {
+                    for (card, rarity, _type) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }

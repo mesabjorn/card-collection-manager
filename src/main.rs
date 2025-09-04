@@ -33,18 +33,18 @@ fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     io::stdin().read_line(&mut n_cards).unwrap();
     let n_cards: i32 = n_cards.trim().parse().unwrap_or(0);
 
-    let mut abbreviation = String::new();
-    print!("Enter abbreviated name (e.g. LOB or MRD): ");
+    let mut prefix = String::new();
+    print!("Enter prefix of series (e.g. LOB or MRD): ");
     io::stdout().flush().unwrap();
-    io::stdin().read_line(&mut abbreviation).unwrap();
-    let abbreviation = abbreviation.trim().to_string();
+    io::stdin().read_line(&mut prefix).unwrap();
+    let prefix = prefix.trim().to_string();
 
     Ok(Series {
         id: None,
         name,
         release_date,
         n_cards,
-        abbreviation: Some(abbreviation.clone()),
+        prefix: Some(prefix.clone()),
     })
 }
 
@@ -155,16 +155,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                         name: series_json.name.clone(),
                         release_date: series_json.release_date,
                         n_cards: series_json.ncards,
-                        abbreviation: Some(series_json.abbreviation.unwrap_or(String::from(""))),
+                        prefix: Some(series_json.prefix.unwrap_or(String::from(""))),
                     };
 
                     let series_id = db.insert_series(&series)?;
                     let mut cnt = 0;
                     for c in series_json.cards {
-                        let (abbr, collection_number) = get_series_and_number(&c.card_number);
+                        let (prefix, collection_number) = get_series_and_number(&c.card_number);
                         let card = Card {
                             name: c.name.clone(),
-                            number: format!("{}-{:03}", abbr, collection_number),
+                            number: c.card_number,
                             collection_number: collection_number,
                             rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
                             series_id: series_id,
@@ -183,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     db.insert_rarity(&n)?;
                     println!("Inserted rarity '{}'", n);
                 }
-                "card_type" => {
+                "card-type" => {
                     let n = name.expect("--name for card-type is required");
                     let mut parts = n.splitn(2, ' '); // split into at most 2 parts
                     let subtype = parts.next().unwrap_or(""); //first part is subtype e.g. EFFECT
@@ -273,6 +273,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::Sell { id } => {
             //for collecting card id's (e.g. PSV-EN001)
+            if id.len() == 0 {
+                eprintln!("--id is required for a sell action"); // print to stderr
+                std::process::exit(1); // exit with error code
+            }
+
             if id.len() == 1 {
                 let card_id = &id[0];
 

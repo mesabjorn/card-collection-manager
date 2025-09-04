@@ -1,4 +1,3 @@
-pub mod api;
 pub mod card;
 pub mod cli;
 pub mod copy;
@@ -7,6 +6,8 @@ mod dberror; //custom db errors
 pub mod jsoncards;
 mod rarity;
 pub mod series;
+
+pub mod routes;
 
 use std::sync::{Arc, Mutex};
 

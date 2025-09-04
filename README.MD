@@ -73,7 +73,7 @@ Collect a multiple cards (add 1 to a certain card ids):
 `card-collection-manager mycards.db collect --id id1 id2 id3`  
 Collect a multiple cards by range: (add 1 to all card ids in range):  
 `card-collection-manager mycards.db collect --id range`  
-Where range can be a series abbreviation e.g. 'SDK-001-010', collects all cards with id's SDK-001 through SDK-010 (adds one to each)
+Where range can be a series prefix with collection number(e.g. 'SDK-001-010'): collects all cards with id's SDK-001 through SDK-010 (adds one to each)
 - Set collection count to a fixed number:  
 `card-collection-manager mycards.db collect --id id --count <number>`
 4. Sell id: Removes cards from your collection:
@@ -83,7 +83,7 @@ Sell multiple cards (subtract 1 to a certain card ids):
 `card-collection-manager mycards.db sell--id id1 id2 id3`  
 Sell multiple cards by range: (subtract 1 to all card ids in range):  
 `card-collection-manager mycards.db sell --id range`  
-Where range can be a series abbreviation e.g. 'SDK-001-010', removes one of all cards with id's SDK-001 through SDK-010
+Where range can be a series prefix with collection number(e.g. 'SDK-001-010'): removes one of all cards with id's SDK-001 through SDK-010
 5. Find cards or series:
 ```bash
 Usage: card-collection-manager.exe <DBNAME> find [OPTIONS] <KIND>

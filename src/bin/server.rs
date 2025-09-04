@@ -1,6 +1,8 @@
+use card_collection_manager::routes::api;
+
 use axum::{Router, serve};
+use card_collection_manager::AppState;
 use card_collection_manager::db::setup;
-use card_collection_manager::{AppState, api};
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};

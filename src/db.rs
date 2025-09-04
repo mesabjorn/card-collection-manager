@@ -82,7 +82,7 @@ impl DatabaseConnection {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         release_date DATE NOT NULL,
-        abbreviation TEXT,
+        prefix TEXT,
         n_cards INTEGER NOT NULL DEFAULT 0
         )",
             [],
@@ -129,13 +129,13 @@ impl DatabaseConnection {
             .unwrap_or_else(|_| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
 
         self.conn.execute(
-            "INSERT OR IGNORE INTO series (name, release_date, n_cards,abbreviation)
+            "INSERT OR IGNORE INTO series (name, release_date, n_cards,prefix)
          VALUES (?1, ?2, ?3,?4)",
             params![
                 series.name,
                 release_date.to_string(),
                 series.n_cards,
-                series.abbreviation
+                series.prefix
             ],
         )?;
 
@@ -377,9 +377,9 @@ impl DatabaseConnection {
     }
 
     pub fn get_series_by_id(&self, id: i32) -> Result<Series, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, release_date, n_cards,abbreviation FROM series WHERE id = ?1",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, release_date, n_cards,prefix FROM series WHERE id = ?1")?;
 
         match stmt.query_row([id], |r| {
             Ok(Series {
@@ -387,7 +387,7 @@ impl DatabaseConnection {
                 name: r.get(1)?,
                 release_date: r.get(2)?,
                 n_cards: r.get(3)?,
-                abbreviation: r.get(4)?,
+                prefix: r.get(4)?,
             })
         }) {
             Ok(series) => Ok(series),
@@ -434,7 +434,7 @@ impl DatabaseConnection {
     pub fn get_unique_series(&self) -> Result<Vec<Series>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT id, name, n_cards, release_date,abbreviation FROM series")?;
+            .prepare("SELECT DISTINCT id, name, n_cards, release_date,prefix FROM series")?;
 
         let series_iter = stmt.query_map([], |row| {
             Ok(Series {
@@ -442,7 +442,7 @@ impl DatabaseConnection {
                 name: row.get(1)?,
                 n_cards: row.get(2)?,
                 release_date: row.get(3)?,
-                abbreviation: row.get(4)?,
+                prefix: row.get(4)?,
             })
         })?;
 

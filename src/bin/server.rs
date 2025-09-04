@@ -1,4 +1,7 @@
+use axum::http::HeaderValue;
 use card_collection_manager::routes::api;
+
+use tower_http::cors::{Any, CorsLayer};
 
 use axum::{Router, serve};
 use card_collection_manager::AppState;
@@ -26,7 +29,15 @@ async fn main() {
         db: Arc::new(Mutex::new(conn)), // wrap DatabaseConnection in Mutex + Arc
     });
 
-    let app = Router::new().nest("/api", api::routes()).with_state(state);
+    let cors = CorsLayer::new()
+        .allow_origin(HeaderValue::from_static("http://localhost:5173"))
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = Router::new()
+        .nest("/api", api::routes())
+        .layer(cors)
+        .with_state(state);
 
     let addr: SocketAddr = "0.0.0.0:3000".parse().unwrap();
     println!("🚀 Server running at http://{}", addr);

@@ -3,7 +3,7 @@ use std::error::Error;
 use chrono::NaiveDate;
 use rusqlite::{Connection, Result, params};
 
-use crate::card::Card;
+use crate::card::{self, Card};
 use crate::dberror::DbError;
 
 use crate::series::Series;
@@ -211,27 +211,24 @@ impl DatabaseConnection {
         // Use a single SQL statement to increment and return the new value
 
         if let Some(count) = count {
-            //count specified for individual cards
-            let new_count: i32 = self
-                .conn
-                .query_row(
-                    "UPDATE cards
-                    SET in_collection = in_collection + ?1
-                    WHERE number = ?2
-                    RETURNING in_collection",
-                    params![count, card_id],
-                    |row| row.get(0),
-                )
-                .map_err(DbError::from)?;
-            Ok(new_count)
+            println!("setting {} to {}", card_id, count);
+            //set count to specified value
+            self.conn.execute(
+                "UPDATE cards
+                    SET in_collection = ?1
+                    WHERE number = ?2",
+                params![count, card_id],
+            )?;
+            Ok(count)
         } else {
+            //no count specified, add 1 to existing collection
             let new_count: i32 = self
                 .conn
                 .query_row(
                     "UPDATE cards
-                SET in_collection = in_collection + 1
-                WHERE number = ?1
-                RETURNING in_collection",
+                    SET in_collection = in_collection + 1
+                    WHERE number = ?1
+                    RETURNING in_collection",
                     params![card_id],
                     |row| row.get(0),
                 )

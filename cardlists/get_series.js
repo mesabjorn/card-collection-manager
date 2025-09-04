@@ -16,7 +16,8 @@ String.prototype.capitalize= function(){
 }
 
 function tableToJson() {
-    const table = document.querySelectorAll("table.card-list")[0];
+    let current = document.querySelectorAll("div.wds-tab__content.wds-is-current")[0];
+    const table = current.querySelector("table.card-list");
     const rows = Array.from(table.querySelectorAll("tbody tr"));
 
     return rows.map(row => {
@@ -78,6 +79,9 @@ const main = () => {
         btn.style.color = "white";
         btn.style.border = "none";
         btn.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+        btn.style.position="fixed";
+        btn.style.width="60%";
+        btn.style.zIndex=99;
 
         // Click action
         btn.addEventListener("click", () => {
@@ -88,7 +92,8 @@ const main = () => {
                 "name": document.querySelector("#mw-content-text > div > aside > h2").innerText,
                 "ncards": cards.length,
                 "release_date": getReleaseDate(),
-                "cards": cards
+                "cards": cards,
+                "prefix":cards[0].card_number.split("-")[0],
             }
             const text = JSON.stringify(jsonData, null, 2);
             toClipboard(text);

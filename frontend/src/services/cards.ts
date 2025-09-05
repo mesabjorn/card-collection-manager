@@ -14,6 +14,14 @@ export interface Card {
   card_type_id: number;
 }
 
+export interface Series {
+  name: string;
+  id:number;
+  ncards:number;
+  prefix:string;
+  release_date:string;
+}
+
 export async function getCards(query?: string) {
   if (query) {
     const res = await api.post<Card[]>("/cards", { name: query });
@@ -28,4 +36,8 @@ export async function updateCard(id: String, number: number) {
   return res.data;
 }
 
+export async function getSeries() {
+  const res = await api.get<Series[]>("/series");
+  return res.data;
+}
 

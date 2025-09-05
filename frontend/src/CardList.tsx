@@ -1,33 +1,44 @@
 import { useEffect, useState } from "react";
-import { getCards,Card, updateCard } from "./services/cards.ts";
+import { getCards, type Card, updateCard } from "./services/cards.ts";
 
-import './App.css'
+import "./App.css";
 
-export function App() {
+export function CardList({ seriesId }: { seriesId: number | null }) {
+  
   const [initialCards, setInitialCards] = useState<Card[]>([]);
   const [visibleCards, setVisibleCards] = useState<Card[]>([]);
   const [search, setSearch] = useState("");
 
   const fetchCards = async (q?: string) => {
     const data = await getCards(q);
-    setInitialCards(data.map(a=>a[0]));
-    setVisibleCards(data.map(a=>a[0]))
+    const cards = data.map((a) => a[0]);
+    setInitialCards(cards);
+    setVisibleCards(cards);
   };
 
   useEffect(() => {
     fetchCards();
   }, []);
 
+  useEffect(() => {
+    handleSearch();
+  }, [seriesId]);
+
   const handleSearch = async () => {
     // fetchCards(search);
-    if (search.length===0){
-      setVisibleCards(initialCards);
-      return;
-    }
-    setVisibleCards(prev=>{
-
-      return initialCards.filter(c=>c.name.toLocaleLowerCase().indexOf(search.toLocaleLowerCase())>-1);
-    })
+    // if (search.length === 0) {
+    //   setVisibleCards(initialCards);
+    //   return;
+    // }
+    setVisibleCards(() => {
+      return initialCards.filter((c) => {
+        const matchesSearch = c.name
+          .toLowerCase()
+          .includes(search.toLowerCase());
+        const matchesSeries = !seriesId || c.series_id==seriesId;
+        return matchesSearch && matchesSeries;
+      });
+    });
   };
 
   const handleIncrement = async (card: Card) => {
@@ -36,8 +47,7 @@ export function App() {
   };
 
   return (
-    <div className="p-8 container mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Card Collection</h1>
+    <div className="p-8">
 
       <div className="mb-4 flex gap-2">
         <input
@@ -66,7 +76,7 @@ export function App() {
           </tr>
         </thead>
         <tbody>
-          {visibleCards.map((card,i) => (
+          {visibleCards.map((card, i) => (
             <tr key={i} className="hover:bg-sky-700">
               <td className="border p-2">{card.name}</td>
               <td className="border p-2">{card.number}</td>
@@ -79,7 +89,7 @@ export function App() {
                   +1
                 </button>
                 <button
-                  onClick={() => handleDelete(card)}
+                  // onClick={() => handleDelete(card)}
                   className="bg-red-500 text-white px-2 rounded"
                 >
                   Delete
@@ -93,4 +103,4 @@ export function App() {
   );
 }
 
-export default App;
+export default CardList;

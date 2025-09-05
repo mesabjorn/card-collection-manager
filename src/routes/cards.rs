@@ -28,8 +28,6 @@ pub fn routes() -> Router<Arc<AppState>> {
 }
 
 async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    println!("lsigint cards...");
-
     let db = state.db.clone(); // spawn_blocking closure must return the data // spawn_blocking closure returns the vector 
     let cards_with_meta: Vec<(Card, String, String)> = task::spawn_blocking(move || {
         let db = db.lock().unwrap(); // lock Mutex 
@@ -48,7 +46,7 @@ async fn search_cards(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
-    println!("searching cards...");
+    
     let query = match payload.name {
         Some(ref q) if !q.is_empty() => q.clone(),
         _ => return (StatusCode::FORBIDDEN, "name is required").into_response(),
@@ -77,8 +75,7 @@ async fn update_card(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateCardRequest>,
 ) -> impl IntoResponse {
-    let db = state.db.clone();
-    println!("updating single card..");
+    let db = state.db.clone();    
 
     // use 1 as default if number is not supplied
 

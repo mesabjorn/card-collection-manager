@@ -28,7 +28,7 @@ const App = () => {
     <>
       <div className="container mx-auto min-h-screen">
         <h1 className="text-2xl font-bold mb-4">Card Collection</h1>
-        <div className="grid grid-cols-2">
+        <div className="grid grid-cols-4">
           <SeriesFilter
             currentSelection={selectedSeriesId}
             series={series}

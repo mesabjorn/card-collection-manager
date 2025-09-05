@@ -10,8 +10,8 @@ export interface Card {
   number: string;
   collection_number: number;
   in_collection: number;
-  rarity_id: number;
-  card_type_id: number;
+  rarity: string;
+  card_type: string;
 }
 
 export interface Series {

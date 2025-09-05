@@ -27,14 +27,39 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new().route("/", get(list_cards).post(search_cards).put(update_card))
 }
 
-async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let db = state.db.clone(); // spawn_blocking closure must return the data // spawn_blocking closure returns the vector 
-    let cards_with_meta: Vec<(Card, String, String)> = task::spawn_blocking(move || {
-        let db = db.lock().unwrap(); // lock Mutex 
-        db.get_cards(None).unwrap() // call your method
+#[derive(Serialize)]
+struct CardWithMeta {
+    number: String,
+    name: String,
+    series_id: i32,
+    in_collection: i32,
+    card_type: String,
+    rarity: String,
+}
+
+pub async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let db = state.db.clone();
+
+    let cards_with_meta: Vec<CardWithMeta> = task::spawn_blocking(move || {
+        let db = db.lock().unwrap();
+
+        // Assuming your DB returns Vec<(Card, String, String)>
+        db.get_cards(None)
+            .unwrap()
+            .into_iter()
+            .map(|(card, rarity, card_type)| CardWithMeta {
+                number: card.number,
+                name: card.name,
+                series_id: card.series_id,
+                in_collection: card.in_collection,
+                rarity,
+                card_type,
+            })
+            .collect()
     })
     .await
-    .unwrap(); // unwrap the JoinHandle 
+    .unwrap();
+
     (StatusCode::OK, Json(cards_with_meta))
 }
 
@@ -46,7 +71,6 @@ async fn search_cards(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
-    
     let query = match payload.name {
         Some(ref q) if !q.is_empty() => q.clone(),
         _ => return (StatusCode::FORBIDDEN, "name is required").into_response(),
@@ -75,16 +99,16 @@ async fn update_card(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateCardRequest>,
 ) -> impl IntoResponse {
-    let db = state.db.clone();    
+    let db = state.db.clone();
 
     // use 1 as default if number is not supplied
 
-    let cards_with_meta: i32 = task::spawn_blocking(move || {
+    let card: i32 = task::spawn_blocking(move || {
         let db = db.lock().unwrap();
         db.collect_card(&payload.id, payload.number).unwrap()
     })
     .await
     .unwrap();
 
-    (StatusCode::OK, Json(cards_with_meta))
+    (StatusCode::OK, Json(card))
 }

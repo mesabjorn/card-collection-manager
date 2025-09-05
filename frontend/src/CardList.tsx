@@ -20,31 +20,29 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     fetchCards();
   }, []);
 
-  useEffect(() => {
-    handleSearch();
-  }, [seriesId]);
+  // useEffect(() => {
+  //   handleSearch();
+  // }, [seriesId]);
 
-  const handleSearch = async () => {
-    // fetchCards(search);
-    // if (search.length === 0) {
-    //   setVisibleCards(initialCards);
-    //   return;
-    // }
-    setVisibleCards(() => {
-      return initialCards.filter((c) => {
-        const matchesSearch = c.name
-          .toLowerCase()
-          .includes(search.toLowerCase());
-        const matchesSeries = !seriesId || c.series_id==seriesId;
+  useEffect(() => {
+    setVisibleCards(
+      initialCards.filter((c) => {
+        const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
+        const matchesSeries = !seriesId || c.series_id === seriesId;
         return matchesSearch && matchesSeries;
-      });
-    });
-  };
+      })
+    );
+  }, [initialCards, search, seriesId]);
 
   const handleIncrement = async (card: Card) => {
     await updateCard(card.number, 1);
-    fetchCards(search);
-  };
+    const newcards = initialCards.map(c =>
+      c.number === card.number
+        ? { ...c, in_collection: (c.in_collection ?? 0) + 1 } // increment count or set to 1 if undefined
+        : c
+    )
+    setInitialCards(newcards);
+    };
 
   return (
     <div className="p-8">
@@ -56,10 +54,8 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border rounded p-2 flex-1"
-          onKeyUp={handleSearch}
         />
         <button
-          onClick={handleSearch}
           className="bg-blue-500 text-white px-4 py-2 rounded"
         >
           Search
@@ -89,7 +85,6 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
                   +1
                 </button>
                 <button
-                  // onClick={() => handleDelete(card)}
                   className="bg-red-500 text-white px-2 rounded"
                 >
                   Delete

@@ -3,7 +3,7 @@ use std::error::Error;
 use chrono::NaiveDate;
 use rusqlite::{Connection, Result, params};
 
-use crate::card::{self, Card};
+use crate::card::Card;
 use crate::dberror::DbError;
 
 use crate::series::Series;

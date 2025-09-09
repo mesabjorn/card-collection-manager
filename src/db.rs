@@ -431,7 +431,7 @@ impl DatabaseConnection {
     pub fn get_unique_series(&self) -> Result<Vec<Series>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT id, name, n_cards, release_date,prefix FROM series")?;
+            .prepare("SELECT DISTINCT id, name, n_cards, release_date,prefix FROM series order by release_date")?;
 
         let series_iter = stmt.query_map([], |row| {
             Ok(Series {

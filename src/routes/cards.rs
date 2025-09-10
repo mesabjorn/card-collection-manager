@@ -20,11 +20,14 @@ pub struct NewCard {
     pub card_type_id: i32,
 }
 
-use crate::AppState;
 use crate::card::Card;
+use crate::{AppState, dberror::DbError};
 
 pub fn routes() -> Router<Arc<AppState>> {
-    Router::new().route("/", get(list_cards).post(search_cards).put(update_card))
+    Router::new().route(
+        "/",
+        get(list_cards).post(search_cards).put(update_card_count),
+    )
 }
 
 #[derive(Serialize)]
@@ -95,20 +98,44 @@ pub struct UpdateCardRequest {
     pub number: Option<i32>, //number in collection, defaults to add 1
 }
 
-async fn update_card(
+async fn update_card_count(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateCardRequest>,
 ) -> impl IntoResponse {
     let db = state.db.clone();
 
-    // use 1 as default if number is not supplied
+    //default to add one
+    let number = payload.number; // Option<i32>
 
-    let card: i32 = task::spawn_blocking(move || {
+    let id = payload.id;
+
+    let result: Result<i32, DbError> = task::spawn_blocking(move || {
         let db = db.lock().unwrap();
-        db.collect_card(&payload.id, payload.number).unwrap()
+
+        match number {
+            Some(-1) => {
+                // Selling card
+                db.sell_card(&id).map(|_| -1) // return -1 or any meaningful marker
+            }
+            other => {
+                // Collecting card, default Some(1)
+                //let count = other.or(Some(1));
+                db.collect_card(&id, other)
+            }
+        }
     })
     .await
     .unwrap();
 
-    (StatusCode::OK, Json(card))
+    match result {
+        Ok(card) => (StatusCode::OK, Json(card)).into_response(),
+        Err(e) => {
+            // map DB errors into proper HTTP codes
+            let status = match e {
+                DbError::InvalidOperation(_) => StatusCode::BAD_REQUEST, // catch all InvalidOperation
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, Json(format!("Database error: {}", e))).into_response()
+        }
+    }
 }

@@ -211,7 +211,7 @@ impl DatabaseConnection {
         // Use a single SQL statement to increment and return the new value
 
         if let Some(count) = count {
-            println!("setting {} to {}", card_id, count);
+            println!("Setting {} to {}", card_id, count);
             //set count to specified value
             self.conn.execute(
                 "UPDATE cards
@@ -221,6 +221,8 @@ impl DatabaseConnection {
             )?;
             Ok(count)
         } else {
+            println!("Incrementing {} ", card_id);
+
             //no count specified, add 1 to existing collection
             let new_count: i32 = self
                 .conn

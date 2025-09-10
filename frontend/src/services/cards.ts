@@ -32,7 +32,7 @@ export async function getCards(query?: string) {
 }
 
 export async function updateCard(id: String, number: number) {
-  const res = await api.put<number>("/cards", {id});
+  const res = await api.put<number>("/cards", {id,number});
   return res.data;
 }
 

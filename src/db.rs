@@ -211,7 +211,6 @@ impl DatabaseConnection {
         // Use a single SQL statement to increment and return the new value
 
         if let Some(count) = count {
-            println!("Setting {} to {}", card_id, count);
             //set count to specified value
             self.conn.execute(
                 "UPDATE cards

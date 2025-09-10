@@ -13,11 +13,11 @@ const App = () => {
     const newSelection = id === selectedSeriesId ? null : id;
     setSelectedSeriesId(newSelection);
   };
-  
+
   const fetchSeries = async () => {
-      const data = await getSeries();
-      console.log({series:data});
-      setSeries(data);
+    const data = await getSeries();
+    
+    setSeries(data);
   };
 
   useEffect(() => {
@@ -28,13 +28,22 @@ const App = () => {
     <>
       <div className="container mx-auto min-h-screen">
         <h1 className="text-2xl font-bold mb-4">Card Collection</h1>
-        <div className="grid grid-cols-4">
-          <SeriesFilter
-            currentSelection={selectedSeriesId}
-            series={series}
-            onSelect={handleChangeSelection}
-          />
-          <CardList seriesId={selectedSeriesId} />
+
+        {/* Parent grid with 2 columns */}
+        <div className="grid grid-cols-12 gap-4">
+          {/* Left column */}
+          <div className="col-span-3">
+            <SeriesFilter
+              currentSelection={selectedSeriesId}
+              series={series}
+              onSelect={handleChangeSelection}
+            />
+          </div>
+
+          {/* Right column */}
+          <div className="col-span-9">
+            <CardList seriesId={selectedSeriesId} />
+          </div>
         </div>
       </div>
     </>

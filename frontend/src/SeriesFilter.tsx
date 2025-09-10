@@ -1,3 +1,5 @@
+import { useState } from "react";
+import InputWithClearButton from "./InputWithClearButton";
 import type { Series } from "./services/cards";
 
 type SeriesFilterProps = {
@@ -11,11 +13,25 @@ const SeriesFilter = ({
   currentSelection,
   onSelect,
 }: SeriesFilterProps) => {
+  const [searchQuery,setSearchQuery] = useState("");
+
+  const matchesSearch = (s:Series) =>{
+    return s.name.toLocaleLowerCase().includes(searchQuery.toLocaleLowerCase())||
+      s.prefix.toLocaleLowerCase().includes(searchQuery.toLocaleLowerCase());
+  }
+
   return (
     <>
+    <div className="text-xl font-bold mb-4">Series:</div>
+    <InputWithClearButton
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      onClear={()=>{setSearchQuery('')}}
+      autoFocus={true}
+      placeholder="Find a series (by name or prefix)"
+    />
       <ul className="space-y-2">
-        <li className="text-xl font-bold mb-4">Series:</li>
-        {series.map((s) => (
+        {series.filter(s=>matchesSearch(s)).map((s) => (
           <li
             key={s.id}
             onClick={() => onSelect(s.id)}

@@ -1,10 +1,12 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Series {
     pub id: Option<i32>, // optional until inserted
     pub name: String,
     pub release_date: String,
     pub n_cards: i32,
-    pub abbreviation: Option<String>,
+    pub prefix: Option<String>,
 }
 
 impl std::ops::Deref for Series {

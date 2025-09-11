@@ -1,0 +1,21 @@
+GET http://localhost:3000/api/cards
+
+###
+POST http://localhost:3000/api/cards
+content-type: application/json
+
+{
+    "name": "soul",
+    "time": "Wed, 21 Oct 2015 18:27:50 GMT"
+}
+
+
+###
+PUT http://localhost:3000/api/cards
+content-type: application/json
+
+{
+    "id": "SDY-E001",
+    "number":1
+}
+

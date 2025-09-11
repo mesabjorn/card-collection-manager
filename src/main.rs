@@ -3,77 +3,16 @@ use std::{
     io::{self, BufReader, Write},
 };
 
-mod card;
-mod cli;
-mod copy;
-mod db;
-mod dberror; //custom db errors
-mod jsoncards;
-mod rarity;
-mod series;
-
-use clap::Parser;
-use open;
-
-use crate::{
+use card_collection_manager::{
     card::Card,
     cli::{Args, Command},
     copy::add_file_to_clipboard,
-    db::DatabaseConnection,
+    db::{get_series_and_number, setup},
+    jsoncards,
     series::Series,
 };
 
-pub fn get_series_and_number(s: &str) -> (String, i32) {
-    // Find the position where the numeric part starts from the end
-    let pos = s
-        .rfind(|c: char| c.is_ascii_digit())
-        .map(|last_digit_idx| {
-            // Find the start of the contiguous digit block
-            s[..=last_digit_idx]
-                .rfind(|c: char| !c.is_ascii_digit())
-                .map_or(0, |idx| idx + 1)
-        })
-        .unwrap_or(s.len());
-
-    let (prefix, num_str) = s.split_at(pos);
-    let number = num_str.parse::<i32>().unwrap_or(0);
-
-    // Take only the part before the first hyphen
-    let abbr = prefix.split('-').next().unwrap_or("").to_string();
-
-    (abbr, number)
-}
-
-fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
-    let db = db::DatabaseConnection::new(dbname)?;
-    db.create_tables()?;
-
-    // Insert rarities
-    db.insert_rarity("Common")?;
-    db.insert_rarity("Rare")?;
-    db.insert_rarity("Super Rare")?;
-    db.insert_rarity("Ultra Rare")?;
-    db.insert_rarity("Secret Rare")?;
-    db.insert_rarity("Starlight Rare")?;
-    db.insert_rarity("Quarter Century Rare")?;
-
-    // Insert card types
-    db.insert_card_type("Spell Card", "Normal")?;
-    db.insert_card_type("Spell Card", "Equip")?;
-    db.insert_card_type("Spell Card", "Field")?;
-    db.insert_card_type("Spell Card", "Quick-Play")?;
-    db.insert_card_type("Monster", "Normal")?;
-    db.insert_card_type("Monster", "Flip")?;
-    db.insert_card_type("Monster", "Effect")?;
-    db.insert_card_type("Monster", "Union")?;
-    db.insert_card_type("Fusion Monster", "Normal")?;
-    db.insert_card_type("Fusion Monster", "Effect")?;
-    db.insert_card_type("Trap Card", "Normal")?;
-    db.insert_card_type("Trap Card", "Continuous")?;
-    db.insert_card_type("Trap Card", "Counter")?;
-
-    Ok(db)
-}
+use open;
 
 fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     let mut name = String::new();
@@ -94,18 +33,18 @@ fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     io::stdin().read_line(&mut n_cards).unwrap();
     let n_cards: i32 = n_cards.trim().parse().unwrap_or(0);
 
-    let mut abbreviation = String::new();
-    print!("Enter abbreviated name (e.g. LOB or MRD): ");
+    let mut prefix = String::new();
+    print!("Enter prefix of series (e.g. LOB or MRD): ");
     io::stdout().flush().unwrap();
-    io::stdin().read_line(&mut abbreviation).unwrap();
-    let abbreviation = abbreviation.trim().to_string();
+    io::stdin().read_line(&mut prefix).unwrap();
+    let prefix = prefix.trim().to_string();
 
     Ok(Series {
         id: None,
         name,
         release_date,
         n_cards,
-        abbreviation: Some(abbreviation.clone()),
+        prefix: Some(prefix.clone()),
     })
 }
 
@@ -173,9 +112,11 @@ fn format_card(
         .replace("{card_type}", card_type)
         .replace("{in_collection}", &card.in_collection.to_string())
 }
+use clap::{Parser, Subcommand};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse(); // Parse CLI arguments
+    let args = Args::parse();
+
     let dbname = args.dbname;
 
     let db = setup(&dbname)?;
@@ -214,16 +155,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                         name: series_json.name.clone(),
                         release_date: series_json.release_date,
                         n_cards: series_json.ncards,
-                        abbreviation: Some(series_json.abbreviation.unwrap_or(String::from(""))),
+                        prefix: Some(series_json.prefix.unwrap_or(String::from(""))),
                     };
 
                     let series_id = db.insert_series(&series)?;
                     let mut cnt = 0;
                     for c in series_json.cards {
-                        let (abbr, collection_number) = get_series_and_number(&c.card_number);
+                        let (prefix, collection_number) = get_series_and_number(&c.card_number);
                         let card = Card {
                             name: c.name.clone(),
-                            number: format!("{}-{:03}", abbr, collection_number),
+                            number: c.card_number,
                             collection_number: collection_number,
                             rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
                             series_id: series_id,
@@ -242,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     db.insert_rarity(&n)?;
                     println!("Inserted rarity '{}'", n);
                 }
-                "card_type" => {
+                "card-type" => {
                     let n = name.expect("--name for card-type is required");
                     let mut parts = n.splitn(2, ' '); // split into at most 2 parts
                     let subtype = parts.next().unwrap_or(""); //first part is subtype e.g. EFFECT
@@ -264,7 +205,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match kind.as_str() {
                 "cards" => {
                     let cards = db.get_cards(None)?;
-                    for (card, rarity) in cards {
+                    for (card, rarity, _type) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }
@@ -332,6 +273,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::Sell { id } => {
             //for collecting card id's (e.g. PSV-EN001)
+            if id.len() == 0 {
+                eprintln!("--id is required for a sell action"); // print to stderr
+                std::process::exit(1); // exit with error code
+            }
+
             if id.len() == 1 {
                 let card_id = &id[0];
 
@@ -356,7 +302,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "cards" => {
                     let q = query.expect("--query is required for 'find cards --query query'");
                     let cards = db.get_cards(Some(q.as_str()))?;
-                    for (card, rarity) in cards {
+                    for (card, rarity, _type) in cards {
                         println!("{:?} | Rarity: {}", card, rarity);
                     }
                 }

@@ -6,7 +6,7 @@ pub enum DbError {
     UnknownSeries(String),
     UnknownCardType(String),
     UniqueConstraintViolation(String),
-    InvalidOperation(String), // <-- add this
+    InvalidOperation(String),
 
     SqliteError(rusqlite::Error),
 }
@@ -19,8 +19,9 @@ impl fmt::Display for DbError {
             DbError::UnknownCardType(name) => {
                 write!(f, "Encountered undefined card type: {}", name)
             }
-            DbError::InvalidOperation(name) => write!(f, "Invalid sql operation: {}", name),
+            DbError::InvalidOperation(name) => write!(f, "Invalid DB operation: {}", name),
             DbError::UniqueConstraintViolation(name) => write!(f, "Adding card failure: {}", name),
+
             DbError::SqliteError(e) => write!(f, "SQLite error: {}", e),
         }
     }

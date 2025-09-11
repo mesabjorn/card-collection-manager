@@ -57,7 +57,8 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
   }, [initialCards, search, seriesId, collectionFilter, selectedRarities]);
 
   const handleIncrement = async (card: Card) => {
-    await updateCard(card.number, 1);
+    //pass null to increment by one
+    await updateCard(card.number,null);
     const newcards = initialCards.map((c) =>
       c.number === card.number
         ? { ...c, in_collection: (c.in_collection ?? 0) + 1 }
@@ -118,6 +119,13 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     }, 0);
   };
 
+    const countNCards = () => {
+    //count number of collected cards (including copies);
+    return initialCards.reduce((acc, card) => {
+      return acc + (card.in_collection);
+    }, 0);
+  };
+
   return (
     <div className="p-8 col-span-3">
       {/* Filter bar */}
@@ -160,7 +168,8 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
           onChange={setSelectedRarities}
         />
       </div>
-      <div className="text-3xl font-bold">{`${countCollected()}/${
+      <div className="text-3xl font-bold"
+      title={`Total cards in collection: ${countNCards()} (including duplicates)`}>{`${countCollected()}/${
         visibleCards.length
       } collected`}</div>
       <table className="table-auto w-full border-collapse border border-gray-300">

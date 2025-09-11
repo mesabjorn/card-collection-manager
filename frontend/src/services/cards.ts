@@ -31,7 +31,7 @@ export async function getCards(query?: string) {
   return res.data;
 }
 
-export async function updateCard(id: String, number: number) {
+export async function updateCard(id: String, number: number|null) {
   const res = await api.put<number>("/cards", {id,number});
   return res.data;
 }

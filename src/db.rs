@@ -15,22 +15,35 @@ pub struct DatabaseConnection {
 }
 
 // Helper function to parse a card range like "LOB-001-010"
-fn parse_card_range(card_id: &str) -> Option<(&str, i32, i32)> {
+fn parse_card_range(card_id: &str) -> Option<(&str, Option<&str>, i32, i32)> {
     // Expect format: PREFIX-START-END
-    // Returns PREFIX,start,end
+    // START and END can be numeric or series+number (like EN001)
+    // Returns: (prefix, optional series prefix, start_number, end_number)
 
     let parts: Vec<&str> = card_id.split('-').collect();
-
-    if parts.len() == 3 {
-        let (_, start) = get_series_and_number(parts[1]);
-        let (_, end) = get_series_and_number(parts[2]);
-        return Some((parts[0], start, end));
+    if parts.len() != 3 {
+        return None;
     }
-    None
+
+    let prefix = parts[0];
+    let start_part = parts[1];
+    let end_part = parts[2];
+
+    // Extract series prefix and numeric value from start
+    let start_series_end = start_part.find(|c: char| c.is_digit(10))?;
+    let series_prefix = if start_series_end > 0 {
+        Some(&start_part[..start_series_end])
+    } else {
+        None
+    };
+    let start_num = start_part[start_series_end..].parse::<i32>().ok()?;
+    let end_num = end_part[start_series_end..].parse::<i32>().ok()?; // assume same series prefix for end
+
+    Some((prefix, series_prefix, start_num, end_num))
 }
 
 pub fn get_series_and_number(s: &str) -> (String, i32) {
-    // Find the position where the numeric part starts from the end
+    // Returns tuple of (series_prefix, collection_number)
     let pos = s
         .rfind(|c: char| c.is_ascii_digit())
         .map(|last_digit_idx| {
@@ -174,17 +187,22 @@ impl DatabaseConnection {
 
     pub fn collect_card(&self, card_id: &str, count: Option<i32>) -> Result<i32, DbError> {
         // Check if the card_id contains a range (e.g., "LOB-001-010")
-        if let Some((prefix, start, end)) = parse_card_range(card_id) {
+        if let Some((prefix, series_prefix, start, end)) = parse_card_range(card_id) {
             // Update all cards in the range
             let mut total_updated = 0;
             for num in start..=end {
-                let card_number = format!("{}-{:03}", prefix, num);
+                let card_number = format!(
+                    "{}-{}{:03}",
+                    prefix,
+                    series_prefix.unwrap_or(""), // use empty string if None
+                    num
+                );
                 let new_count: i32 = if let Some(c) = count {
-                    println!("Updating '{}' to {}", card_number, c);
+                    println!("Collecting {} copies of '{}'", card_number, c);
                     self.conn
                         .query_row(
                             "UPDATE cards
-                            SET in_collection = ?1
+                            SET in_collection = in_collection+?1
                             WHERE number = ?2
                             RETURNING in_collection",
                             params![c, card_number],
@@ -208,46 +226,33 @@ impl DatabaseConnection {
             return Ok(total_updated);
         }
 
-        // Use a single SQL statement to increment and return the new value
+        let final_count = count.unwrap_or_else(|| 1); //default to increment by one
 
-        if let Some(count) = count {
-            //set count to specified value
-            self.conn.execute(
+        //no count specified, add 1 to existing collection
+        let new_count: i32 = self
+            .conn
+            .query_row(
                 "UPDATE cards
-                    SET in_collection = ?1
-                    WHERE number = ?2",
-                params![count, card_id],
-            )?;
-            Ok(count)
-        } else {
-            println!("Incrementing {} ", card_id);
-
-            //no count specified, add 1 to existing collection
-            let new_count: i32 = self
-                .conn
-                .query_row(
-                    "UPDATE cards
-                    SET in_collection = in_collection + 1
-                    WHERE number = ?1
+                    SET in_collection = in_collection + ?1
+                    WHERE number = ?2
                     RETURNING in_collection",
-                    params![card_id],
-                    |row| row.get(0),
-                )
-                .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
-            Ok(new_count)
-        }
+                params![final_count, card_id],
+                |row| row.get(0),
+            )
+            .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
+        Ok(new_count)
     }
 
-    pub fn sell_card(&self, card_id: &str) -> Result<i32, DbError> {
+    pub fn sell_card(&self, card_id: &str, count: i32) -> Result<i32, DbError> {
         // Helper closure to update a single card
         let sell_single = |conn: &rusqlite::Connection, number: &str| -> Result<i32, DbError> {
             let new_count: Option<i32> = conn
                 .query_row(
                     "UPDATE cards
-                 SET in_collection = in_collection - 1
-                 WHERE number = ?1 AND in_collection > 0
+                 SET in_collection = in_collection - ?2
+                 WHERE number = ?1 AND in_collection -?2>=0
                  RETURNING in_collection",
-                    params![number],
+                    params![number, count],
                     |row| row.get(0),
                 )
                 .optional() // returns None if no rows updated
@@ -256,18 +261,23 @@ impl DatabaseConnection {
             match new_count {
                 Some(count) => Ok(count),
                 None => Err(DbError::InvalidOperation(format!(
-                    "Cannot sell card '{}': count is 0 or card does not exist",
+                    "Could not sell card '{}': Number of copies in collection cannot become negative.",
                     number
                 ))),
             }
         };
 
         // Range case (e.g., "LOB-001-010")
-        if let Some((prefix, start, end)) = parse_card_range(card_id) {
+        if let Some((prefix, series_prefix, start, end)) = parse_card_range(card_id) {
             let mut total_updated = 0;
 
             for num in start..=end {
-                let card_number = format!("{}-{:03}", prefix, num);
+                let card_number = format!(
+                    "{}-{}{:03}",
+                    prefix,
+                    series_prefix.unwrap_or(""), // use empty string if None
+                    num
+                );
                 println!("Selling '{}'", card_number);
                 total_updated += sell_single(&self.conn, &card_number)?;
             }
@@ -280,7 +290,7 @@ impl DatabaseConnection {
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String, String)>> {
+    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String, String, String)>> {
         let pattern = match query {
             Some(q) => format!("%{}%", q),
             None => "%".to_string(), // matches everything
@@ -288,10 +298,11 @@ impl DatabaseConnection {
         // println!("query: {}", pattern);
 
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name, t.maintype,t.subtype
+            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name, t.maintype,t.subtype,s.name
              FROM cards c
              JOIN rarity r ON c.rarity_id = r.id
              JOIN card_type t ON c.card_type_id = t.id
+             JOIN series s ON c.series_id = s.id
              where c.name LIKE ?1",
         )?;
 
@@ -302,15 +313,18 @@ impl DatabaseConnection {
                 number: row.get(2)?,
                 collection_number: row.get(3)?,
                 in_collection: row.get(4)?,
-                card_type_id: row.get(6)?,
                 rarity_id: row.get(5)?,
+                card_type_id: row.get(6)?,
             };
             let rarity_name: String = row.get(7)?;
             let main_type_name: String = row.get(8)?;
             let sub_type_name: String = row.get(9)?;
+            let series_name: String = row.get(10)?;
+
             Ok((
                 card,
                 rarity_name,
+                series_name,
                 format!("{} {}", main_type_name, sub_type_name),
             ))
         })?;

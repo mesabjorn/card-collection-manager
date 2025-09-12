@@ -12,11 +12,12 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    ///Initializes a new database if it does not exist
     Init {},
 
-    /// Add entities (series, cards, json)
+    /// Add something to the db [series | card | json | rarity| card-type]
     Add {
-        /// Kind of entity to add [series | cards | json | rarity| card-type]
+        /// Kind of entity to add [series | card | json | rarity| card-type]
         kind: String,
 
         /// JSON file with cards (required for add json)
@@ -29,10 +30,10 @@ pub enum Command {
 
     /// List entities (series, cards)
     List {
-        /// Kind of entity to list [series | cards | serie]
+        /// Kind of entity to list [serie | series | cards |rarities|card-types]
         kind: String,
 
-        /// series name filter (for list serie)
+        /// series name filter (for list serie --name)
         #[arg(long)]
         name: Option<String>,
 
@@ -68,11 +69,30 @@ pub enum Command {
         /// Card ID to sell
         #[arg(long, num_args = 1..)]
         id: Vec<String>,
+
+        #[arg(long, default_value = "1")]
+        count: i32,
     },
     Find {
         /// Kind of entity to list [serie | cards]
         kind: String,
 
         query: Option<String>,
+
+        //hides card already in collection (defaults to false)
+        #[arg(long)]
+        hide_collected: bool,
+
+        /// Custom output formatter, e.g. "{name},{number},{rarity}"
+        /// Format options:
+        /// {name}=card name
+        /// {number}=card number
+        /// {collection_number}=unique collection id
+        /// {rarity}=rarity name
+        /// {series}=series name
+        /// {card_type}=card type
+        /// {in_collection}=copies in collection
+        #[arg(long, default_value = "|{series}|{number}|{name}|")]
+        formatter: String,
     },
 }

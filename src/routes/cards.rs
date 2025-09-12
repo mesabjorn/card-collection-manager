@@ -35,6 +35,7 @@ struct CardWithMeta {
     number: String,
     name: String,
     series_id: i32,
+    series_name: String,
     in_collection: i32,
     card_type: String,
     rarity: String,
@@ -50,10 +51,11 @@ pub async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse
         db.get_cards(None)
             .unwrap()
             .into_iter()
-            .map(|(card, rarity, card_type)| CardWithMeta {
+            .map(|(card, rarity, series, card_type)| CardWithMeta {
                 number: card.number,
                 name: card.name,
                 series_id: card.series_id,
+                series_name: series,
                 in_collection: card.in_collection,
                 rarity,
                 card_type,
@@ -81,7 +83,7 @@ async fn search_cards(
 
     let db = state.db.clone();
 
-    let results: Vec<(Card, String, String)> = task::spawn_blocking(move || {
+    let results: Vec<(Card, String, String, String)> = task::spawn_blocking(move || {
         let db: std::sync::MutexGuard<'_, crate::db::DatabaseConnection> = db.lock().unwrap();
         db.get_cards(Some(&query)).unwrap()
     })
@@ -115,7 +117,7 @@ async fn update_card_count(
         match number {
             Some(-1) => {
                 // Selling card
-                db.sell_card(&id).map(|_| -1) // return -1 or any meaningful marker
+                db.sell_card(&id, 1).map(|_| -1) // return -1 or any meaningful marker
             }
             other => {
                 // Collecting card, default Some(1)

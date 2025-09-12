@@ -12,6 +12,7 @@ use card_collection_manager::{
     series::Series,
 };
 
+use clap::Parser;
 use open;
 
 fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
@@ -112,7 +113,27 @@ fn format_card(
         .replace("{card_type}", card_type)
         .replace("{in_collection}", &card.in_collection.to_string())
 }
-use clap::{Parser, Subcommand};
+
+fn print_cards(cards: Vec<(Card, String, String, String)>, hide_collected: bool, formatter: &str) {
+    let filtered: Vec<_> = cards
+        .into_iter()
+        .filter(|(card, _, _, _)| !(hide_collected && card.in_collection > 0))
+        .collect();
+
+    if filtered.is_empty() {
+        println!("No results.")
+    } else {
+        for (card, rarity, series, card_type) in filtered {
+            if hide_collected && card.in_collection > 0 {
+                continue;
+            }
+            println!(
+                "{}",
+                format_card(&card, &rarity, &series, &card_type, &formatter)
+            );
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
@@ -205,9 +226,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match kind.as_str() {
                 "cards" => {
                     let cards = db.get_cards(None)?;
-                    for (card, rarity, _type) in cards {
-                        println!("{:?} | Rarity: {}", card, rarity);
-                    }
+                    print_cards(cards, hide_collected, &formatter);
                 }
                 "serie" => {
                     let series_name = name.expect("--name is required for list series");
@@ -242,7 +261,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "rarities" => {
                     println!("Not yet implemented...");
                 }
-                "cardtypes" => {
+                "card-types" => {
                     println!("Not yet implemented...");
                 }
                 _ => {
@@ -252,62 +271,44 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::Collect { id, count } => {
             //for collecting card id's (e.g. PSV-EN001)
-            if id.len() == 1 {
-                let card_id = &id[0];
 
+            for card_id in id {
                 let new_count = db.collect_card(&card_id, count)?;
-
                 println!(
-                    "Card '{}' now has {} copies in collection.",
+                    "Card {} now has {} copies in collection.",
                     card_id, new_count
                 );
-            } else {
-                for card_id in id {
-                    let new_count = db.collect_card(&card_id, count)?;
-                    println!(
-                        "Card {} now has {} copies in collection.",
-                        card_id, new_count
-                    );
-                }
             }
         }
-        Command::Sell { id } => {
+        Command::Sell { id, count } => {
             //for collecting card id's (e.g. PSV-EN001)
             if id.len() == 0 {
                 eprintln!("--id is required for a sell action"); // print to stderr
                 std::process::exit(1); // exit with error code
             }
 
-            if id.len() == 1 {
-                let card_id = &id[0];
-
-                let new_count = db.sell_card(&card_id)?;
-
+            for card_id in id {
+                let new_count = db.sell_card(&card_id, count)?;
                 println!(
-                    "Card removed. Card '{}' now has {} copies in collection.",
+                    "Card removed. Card {} now has {} copies in collection.",
                     card_id, new_count
                 );
-            } else {
-                for card_id in id {
-                    let new_count = db.sell_card(&card_id)?;
-                    println!(
-                        "Card removed. Card {} now has {} copies in collection.",
-                        card_id, new_count
-                    );
-                }
             }
         }
-        Command::Find { kind, query } => {
+        Command::Find {
+            kind,
+            query,
+            hide_collected,
+            formatter,
+        } => {
             match kind.as_str() {
                 "cards" => {
-                    let q = query.expect("--query is required for 'find cards --query query'");
+                    let q = query.expect("A query is required for 'find cards query'");
                     let cards = db.get_cards(Some(q.as_str()))?;
-                    for (card, rarity, _type) in cards {
-                        println!("{:?} | Rarity: {}", card, rarity);
-                    }
+                    print_cards(cards, hide_collected, &formatter);
                 }
-                "serie" => {
-                    let q = query.expect("--query is required for 'find serie --query query'");
+                "serie" | "series" => {
+                    let q = query.expect("A query is required for 'find serie query'");
                     let skip = ["the", "of"];
                     let result: String = q
                         .split_whitespace() // split into words
@@ -331,7 +332,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     add_file_to_clipboard("./cardlists/get_series.js").unwrap();
                 }
-
                 _ => {
                     println!("Unsupport find command. Use 'find cards|serie --query query'")
                 }

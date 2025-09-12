@@ -1,10 +1,4 @@
-use axum::{
-    Json, Router,
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{delete, get, post, put},
-};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::task;
@@ -20,8 +14,8 @@ pub struct NewCard {
     pub card_type_id: i32,
 }
 
-use crate::card::Card;
-use crate::{AppState, dberror::DbError};
+use crate::rarity::Rarity;
+use crate::{AppState, cardtype::CardType, dberror::DbError, series::Series};
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new().route(
@@ -34,11 +28,11 @@ pub fn routes() -> Router<Arc<AppState>> {
 struct CardWithMeta {
     number: String,
     name: String,
-    series_id: i32,
-    series_name: String,
+    series: Series,
     in_collection: i32,
-    card_type: String,
-    rarity: String,
+    cardtype: CardType,
+    cardtype_display: String,
+    rarity: Rarity,
 }
 
 pub async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -51,14 +45,14 @@ pub async fn list_cards(State(state): State<Arc<AppState>>) -> impl IntoResponse
         db.get_cards(None)
             .unwrap()
             .into_iter()
-            .map(|(card, rarity, series, card_type)| CardWithMeta {
+            .map(|card| CardWithMeta {
                 number: card.number,
                 name: card.name,
-                series_id: card.series_id,
-                series_name: series,
+                series: card.series,
                 in_collection: card.in_collection,
-                rarity,
-                card_type,
+                rarity: card.rarity,
+                cardtype: card.cardtype.clone(),
+                cardtype_display: card.cardtype.display(),
             })
             .collect()
     })
@@ -83,14 +77,27 @@ async fn search_cards(
 
     let db = state.db.clone();
 
-    let results: Vec<(Card, String, String, String)> = task::spawn_blocking(move || {
+    let cards_with_meta: Vec<CardWithMeta> = task::spawn_blocking(move || {
         let db: std::sync::MutexGuard<'_, crate::db::DatabaseConnection> = db.lock().unwrap();
-        db.get_cards(Some(&query)).unwrap()
+        // Assuming your DB returns Vec<(Card, String, String)>
+        db.get_cards(Some(&query))
+            .unwrap()
+            .into_iter()
+            .map(|card| CardWithMeta {
+                number: card.number,
+                name: card.name,
+                series: card.series,
+                in_collection: card.in_collection,
+                rarity: card.rarity,
+                cardtype: card.cardtype.clone(),
+                cardtype_display: card.cardtype.display(),
+            })
+            .collect()
     })
     .await
     .unwrap();
 
-    (StatusCode::OK, Json(results)).into_response()
+    (StatusCode::OK, Json(cards_with_meta)).into_response()
 }
 
 #[derive(Debug, Deserialize)]

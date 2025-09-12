@@ -1,10 +1,11 @@
 pub mod card;
+pub mod cardtype;
 pub mod cli;
 pub mod copy;
 pub mod db;
 mod dberror; //custom db errors
 pub mod jsoncards;
-mod rarity;
+pub mod rarity;
 pub mod series;
 
 pub mod routes;

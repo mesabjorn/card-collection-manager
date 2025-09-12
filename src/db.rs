@@ -3,9 +3,11 @@ use std::error::Error;
 use chrono::NaiveDate;
 use rusqlite::{Connection, Result, params};
 
-use crate::card::Card;
+use crate::card::{Card, DatabaseCard};
+use crate::cardtype::CardType;
 use crate::dberror::DbError;
 
+use crate::rarity::Rarity;
 use crate::series::Series;
 
 use rusqlite::OptionalExtension; // <- import this
@@ -159,7 +161,7 @@ impl DatabaseConnection {
     }
 
     /// Insert card entry
-    pub fn insert_card(&self, card: &Card) -> Result<i32, DbError> {
+    pub fn insert_card(&self, card: &DatabaseCard) -> Result<i32, DbError> {
         // Get the series name safely
         let series = self.get_series_by_id(card.series_id)?;
 
@@ -290,81 +292,101 @@ impl DatabaseConnection {
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<(Card, String, String, String)>> {
+    pub fn get_cards(&self, query: Option<&str>) -> Result<Vec<Card>> {
         let pattern = match query {
             Some(q) => format!("%{}%", q),
             None => "%".to_string(), // matches everything
         };
-        // println!("query: {}", pattern);
 
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.series_id, c.number, c.collection_number, c.in_collection, c.rarity_id, c.card_type_id, r.name, t.maintype,t.subtype,s.name
-             FROM cards c
-             JOIN rarity r ON c.rarity_id = r.id
-             JOIN card_type t ON c.card_type_id = t.id
-             JOIN series s ON c.series_id = s.id
-             where c.name LIKE ?1",
+            "SELECT 
+                    c.name, c.series_id, c.number, c.collection_number, c.in_collection, 
+                    c.rarity_id, c.card_type_id, r.name, t.maintype, t.subtype,
+                    s.name, s.prefix, s.release_date, s.n_cards
+                    FROM cards c
+                    JOIN rarity r ON c.rarity_id = r.id
+                    JOIN card_type t ON c.card_type_id = t.id
+                    JOIN series s ON c.series_id = s.id
+                    where c.name LIKE ?1
+                    COLLATE NOCASE
+                    ",
         )?;
 
         let card_iter = stmt.query_map([pattern], |row| {
+            let rarity = Rarity {
+                id: row.get(5)?,
+                name: row.get(7)?,
+            };
+
+            let series = Series {
+                id: row.get(1)?,
+                name: row.get(10)?,
+                prefix: row.get(11)?,
+                release_date: row.get(12)?,
+                n_cards: row.get(13)?,
+            };
             let card = Card {
                 name: row.get(0)?,
-                series_id: row.get(1)?,
                 number: row.get(2)?,
                 collection_number: row.get(3)?,
                 in_collection: row.get(4)?,
-                rarity_id: row.get(5)?,
-                card_type_id: row.get(6)?,
+                rarity: rarity,
+                cardtype: CardType {
+                    main: row.get(8)?,
+                    sub: row.get(9)?,
+                },
+                series: series,
             };
-            let rarity_name: String = row.get(7)?;
-            let main_type_name: String = row.get(8)?;
-            let sub_type_name: String = row.get(9)?;
-            let series_name: String = row.get(10)?;
-
-            Ok((
-                card,
-                rarity_name,
-                series_name,
-                format!("{} {}", main_type_name, sub_type_name),
-            ))
+            Ok(card)
         })?;
 
-        Ok(card_iter.filter_map(Result::ok).collect())
+        let cards: Vec<Card> = card_iter.filter_map(Result::ok).collect();
+        Ok(cards)
     }
 
     /// Query cards with rarity name joined
-    pub fn get_cards_by_seriesname(
-        &self,
-        series_name: &str,
-    ) -> Result<Vec<(Card, String, String, String)>, DbError> {
-        let sql = "SELECT c.name, c.number, c.collection_number, c.in_collection, c.series_id, c.rarity_id, c.card_type_id, r.name, s.name, t.maintype,t.subtype
-            FROM cards c
-            JOIN rarity r ON c.rarity_id = r.id
-            JOIN series s ON c.series_id = s.id
-            JOIN card_type t ON c.card_type_id = t.id
-            WHERE s.name = ?1
-            COLLATE NOCASE";
+    pub fn get_cards_by_seriesname(&self, series_name: &str) -> Result<Vec<Card>, DbError> {
+        let sql = "SELECT 
+                                c.name, c.series_id, c.number, c.collection_number, c.in_collection, 
+                                c.rarity_id, c.card_type_id, r.name, t.maintype, t.subtype,
+                                s.name, s.prefix, s.release_date, s.n_cards
+                                FROM cards c
+                                JOIN rarity r ON c.rarity_id = r.id
+                                JOIN card_type t ON c.card_type_id = t.id
+                                JOIN series s ON c.series_id = s.id
+                                where s.name = ?1
+                                COLLATE NOCASE";
         let mut stmt = self.conn.prepare(sql)?;
         // println!("Executing SQL:\n{}\nWith param: '{}'", sql, series_name);
 
         // println!("'{:?}'", stmt);
         let card_iter = stmt
             .query_map([series_name], |row| {
+                let rarity = Rarity {
+                    id: row.get(5)?,
+                    name: row.get(7)?,
+                };
+
+                let series = Series {
+                    id: row.get(1)?,
+                    name: row.get(10)?,
+                    prefix: row.get(11)?,
+                    n_cards: row.get(13)?,
+                    release_date: row.get(12)?,
+                };
                 let card = Card {
                     name: row.get(0)?,
-                    number: row.get(1)?,
-                    collection_number: row.get(2)?,
-                    in_collection: row.get(3)?,
-                    series_id: row.get(4)?,
-                    rarity_id: row.get(5)?,
-                    card_type_id: row.get(6)?,
+                    number: row.get(2)?,
+                    collection_number: row.get(3)?,
+                    in_collection: row.get(4)?,
+                    rarity: rarity,
+                    cardtype: CardType {
+                        main: row.get(8)?,
+                        sub: row.get(9)?,
+                    },
+                    series: series,
                 };
-                let rarity_name: String = row.get(7)?;
-                let series_name: String = row.get(8)?;
-                let card_type: String =
-                    format!("{} {}", row.get::<_, String>(10)?, row.get::<_, String>(9)?);
-
-                Ok((card, rarity_name, series_name, card_type))
+                Ok(card)
             })
             .map_err(DbError::SqliteError)?;
 

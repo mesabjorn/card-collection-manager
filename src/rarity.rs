@@ -1,5 +1,7 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Rarity {
-    id: i32,
+    pub id: i32,
     pub name: String,
 }

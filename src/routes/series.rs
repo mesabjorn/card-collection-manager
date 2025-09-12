@@ -1,11 +1,5 @@
-use axum::{
-    Json, Router,
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{delete, get, post, put},
-};
-use serde::{Deserialize, Serialize};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+
 use std::sync::Arc;
 use tokio::task;
 

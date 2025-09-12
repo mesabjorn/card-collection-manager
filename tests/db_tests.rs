@@ -1,4 +1,4 @@
-use card_collection_manager::card::Card;
+use card_collection_manager::card::DatabaseCard;
 use card_collection_manager::series::Series;
 
 use card_collection_manager::db::setup;
@@ -36,7 +36,7 @@ fn test_insert_and_get_card() {
     };
     let series_id = db.insert_series(&series).unwrap();
 
-    let card = Card {
+    let card = DatabaseCard {
         name: "Test Card".into(),
         series_id,
         number: "TS-001".into(),
@@ -51,5 +51,5 @@ fn test_insert_and_get_card() {
 
     let cards = db.get_cards(None).unwrap();
     assert_eq!(cards.len(), 1);
-    assert_eq!(cards[0].0.name, "Test Card");
+    assert_eq!(cards[0].name, "Test Card");
 }

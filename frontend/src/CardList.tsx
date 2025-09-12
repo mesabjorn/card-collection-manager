@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { getCards, type Card, updateCard } from "./services/cards.ts";
+import {
+  getCards,
+  type Card,
+  updateCard,
+  type CardType,
+} from "./services/cards.ts";
 import { ChevronUp, ChevronDown } from "lucide-react";
 
 import "./App.css";
@@ -27,6 +32,8 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     setVisibleCards(data);
   };
 
+  console.log({ initialCards });
+
   useEffect(() => {
     fetchCards();
   }, []);
@@ -37,7 +44,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
         const matchesSearch = c.name
           .toLowerCase()
           .includes(search.toLowerCase());
-        const matchesSeries = !seriesId || c.series_id === seriesId;
+        const matchesSeries = !seriesId || c.series.id === seriesId;
 
         let matchesCollected = true;
         if (collectionFilter === "collected")
@@ -47,7 +54,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
 
         const matchesRarity =
           selectedRarities.length === 0 ||
-          selectedRarities.includes(c.rarity || "");
+          selectedRarities.includes(c.rarity.name || "");
 
         return (
           matchesSearch && matchesSeries && matchesCollected && matchesRarity
@@ -58,7 +65,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
 
   const handleIncrement = async (card: Card) => {
     //pass null to increment by one
-    await updateCard(card.number,null);
+    await updateCard(card.number, null);
     const newcards = initialCards.map((c) =>
       c.number === card.number
         ? { ...c, in_collection: (c.in_collection ?? 0) + 1 }
@@ -109,7 +116,12 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
   };
 
   const rarities = Array.from(
-    new Set(initialCards.map((c) => c.rarity).filter(Boolean).sort())
+    new Set(
+      initialCards
+        .map((c) => c.rarity.name)
+        .filter(Boolean)
+        .sort()
+    )
   ) as string[];
 
   const countCollected = () => {
@@ -119,11 +131,60 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     }, 0);
   };
 
-    const countNCards = () => {
+  const countNCards = () => {
     //count number of collected cards (including copies);
     return initialCards.reduce((acc, card) => {
-      return acc + (card.in_collection);
+      return acc + card.in_collection;
     }, 0);
+  };
+
+  const bgColorFromCardType = (cardtype: CardType): Record<string, String> => {
+    let result = { color: "black", backgroundColor: "white" };
+
+    switch (cardtype.sub) {
+      case "Flip":
+        result = { color: "black", backgroundColor: "#FF8B53" };
+        break;
+
+      case "Effect":
+        result = { color: "black", backgroundColor: "#FF8B53" }; // Effect Monster (orange)
+        break;
+    }
+
+    switch (cardtype.main) {
+      case "Trap Card":
+        result = { color: "black", backgroundColor: "#BC5A84" };
+        break;
+
+      case "Spell Card":
+        result = { color: "black", backgroundColor: "#1d9e74" };
+        break;
+
+      case "Fusion Monster":
+        // Special check: Effect Fusion Monster → orange
+
+        result = { color: "black", backgroundColor: "#A086B7" };
+
+        break;
+      case "Ritual Monster":
+        // Special check: Effect Fusion Monster → orange
+
+        result = { color: "black", backgroundColor: "#9db5cc" };
+
+        break;
+
+      case "Monster":
+        // Normal (non-effect) monsters → yellow
+        if (cardtype.sub !== "Effect") {
+          result = { color: "black", backgroundColor: "#FDE68A" };
+        }
+        if (cardtype.sub === "Flip" || cardtype.sub === "Toon") {
+          result = { color: "black", backgroundColor: "#FF8B53" };
+        }
+        break;
+    }
+
+    return result;
   };
 
   return (
@@ -168,10 +229,10 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
           onChange={setSelectedRarities}
         />
       </div>
-      <div className="text-3xl font-bold"
-      title={`Total cards in collection: ${countNCards()} (including duplicates)`}>{`${countCollected()}/${
-        visibleCards.length
-      } collected`}</div>
+      <div
+        className="text-3xl font-bold"
+        title={`Total cards in collection: ${countNCards()} (including duplicates)`}
+      >{`${countCollected()}/${visibleCards.length} collected`}</div>
       <table className="table-auto w-full border-collapse border border-gray-300">
         <thead>
           <tr className="bg-green-500">
@@ -199,16 +260,27 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
             >
               Rarity {renderSortIcon("rarity")}
             </th>
+            <th
+              className="border p-2 cursor-pointer"
+              onClick={() => sortBy("cardtype")}
+            >
+              Card-Type {renderSortIcon("cardtype")}
+            </th>
             <th className="border p-2">Actions</th>
           </tr>
         </thead>
         <tbody>
           {visibleCards.map((card, i) => (
-            <tr key={i} className="hover:bg-sky-700">
+            <tr
+              key={i}
+              className="hover:!bg-sky-700"
+              style={bgColorFromCardType(card.cardtype)}
+            >
               <td className="border p-2">{card.name}</td>
               <td className="border p-2">{card.number}</td>
               <td className="border p-2">{card.in_collection}</td>
-              <td className="border p-2">{card.rarity}</td>
+              <td className="border p-2">{card.rarity.name}</td>
+              <td className="border p-2">{card.cardtype_display}</td>
               <td className="border p-2 flex gap-2">
                 <button
                   onClick={() => handleDecrement(card)}

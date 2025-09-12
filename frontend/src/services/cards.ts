@@ -6,18 +6,29 @@ export const api = axios.create({
 
 export interface Card {
   name: string;
-  series_id: number;
   number: string;
   collection_number: number;
   in_collection: number;
-  rarity: string;
-  card_type: string;
+  series: Series;
+  rarity: Rarity;
+  cardtype: CardType;
+  cardtype_display: String;
+}
+
+export interface Rarity {
+  id: string;
+  name: string;
+}
+
+export interface CardType {
+  main:String;
+  sub:String;  
 }
 
 export interface Series {
   name: string;
   id:number;
-  ncards:number;
+  n_cards:number;
   prefix:string;
   release_date:string;
 }

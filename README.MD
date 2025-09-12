@@ -58,7 +58,7 @@ Options:
          {collection_number} = unique collection id 
          {rarity} = rarity name 
          {series} = series name 
-         {card_type} = card type 
+         {cardtype} = card type 
          {in_collection} = copies in collection 
       [default: |{series}|{number}|{name}|]
 ```  

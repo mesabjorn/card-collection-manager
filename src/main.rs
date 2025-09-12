@@ -4,7 +4,7 @@ use std::{
 };
 
 use card_collection_manager::{
-    card::Card,
+    card::{Card, DatabaseCard},
     cli::{Args, Command},
     copy::add_file_to_clipboard,
     db::{get_series_and_number, setup},
@@ -49,7 +49,7 @@ fn prompt_user_series() -> Result<Series, Box<dyn Error>> {
     })
 }
 
-fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
+fn prompt_user_card() -> Result<DatabaseCard, Box<dyn Error>> {
     let mut name = String::new();
     print!("Enter card name: ");
     io::stdout().flush().unwrap();
@@ -86,7 +86,7 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
     io::stdin().read_line(&mut card_type_id).unwrap();
     let card_type_id: i32 = card_type_id.trim().parse().unwrap_or(0);
 
-    Ok(Card {
+    Ok(DatabaseCard {
         name,
         series_id,
         number,
@@ -97,40 +97,31 @@ fn prompt_user_card() -> Result<Card, Box<dyn Error>> {
     })
 }
 
-fn format_card(
-    card: &Card,
-    rarity: &str,
-    series: &str,
-    card_type: &str,
-    formatter: &str,
-) -> String {
+fn format_card(card: &Card, formatter: &str) -> String {
     formatter
         .replace("{name}", &card.name)
         .replace("{number}", &card.number)
         .replace("{collection_number}", &card.collection_number.to_string())
-        .replace("{rarity}", rarity)
-        .replace("{series}", series)
-        .replace("{card_type}", card_type)
+        .replace("{rarity}", &card.rarity.name)
+        .replace("{series}", &card.series.name)
+        .replace("{cardtype}", &card.cardtype.display())
         .replace("{in_collection}", &card.in_collection.to_string())
 }
 
-fn print_cards(cards: Vec<(Card, String, String, String)>, hide_collected: bool, formatter: &str) {
+fn print_cards(cards: Vec<Card>, hide_collected: bool, formatter: &str) {
     let filtered: Vec<_> = cards
         .into_iter()
-        .filter(|(card, _, _, _)| !(hide_collected && card.in_collection > 0))
+        .filter(|card| !(hide_collected && card.in_collection > 0))
         .collect();
 
     if filtered.is_empty() {
         println!("No results.")
     } else {
-        for (card, rarity, series, card_type) in filtered {
+        for card in filtered {
             if hide_collected && card.in_collection > 0 {
                 continue;
             }
-            println!(
-                "{}",
-                format_card(&card, &rarity, &series, &card_type, &formatter)
-            );
+            println!("{}", format_card(&card, &formatter));
         }
     }
 }
@@ -182,8 +173,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let series_id = db.insert_series(&series)?;
                     let mut cnt = 0;
                     for c in series_json.cards {
-                        let (prefix, collection_number) = get_series_and_number(&c.card_number);
-                        let card = Card {
+                        let (_, collection_number) = get_series_and_number(&c.card_number);
+                        let card = DatabaseCard {
                             name: c.name.clone(),
                             number: c.card_number,
                             collection_number: collection_number,
@@ -233,15 +224,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     // Query cards
                     let cards = db.get_cards_by_seriesname(&series_name)?;
-                    for (card, rarity, series, card_type) in cards {
-                        if hide_collected && card.in_collection > 0 {
-                            continue;
-                        }
-                        println!(
-                            "{}",
-                            format_card(&card, &rarity, &series, &card_type, &formatter)
-                        );
-                    }
+                    print_cards(cards, hide_collected, &formatter);
                 }
                 "series" => {
                     // list current unique series in db

@@ -187,10 +187,10 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     return result;
   };
 
-  const browseForCard = (card:Card)=>{
-    const propername = card.name.replaceAll(" ","_");
+  const browseForCard = (card: Card) => {
+    const propername = card.name.replaceAll(" ", "_");
     window.open(`https://yugioh.fandom.com/wiki/${propername}`);
-  }
+  };
 
   return (
     <div className="p-8 col-span-3">
@@ -281,7 +281,9 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
               className="hover:!bg-sky-700"
               style={bgColorFromCardType(card.cardtype)}
             >
-              <td className="border p-2" onClick={()=>browseForCard(card)}>{card.name}</td>
+              <td className="border p-2" onClick={() => browseForCard(card)}>
+                {card.name}
+              </td>
               <td className="border p-2">{card.number}</td>
               <td className="border p-2">{card.in_collection}</td>
               <td className="border p-2">{card.rarity.name}</td>

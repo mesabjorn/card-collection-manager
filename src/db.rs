@@ -109,13 +109,14 @@ impl DatabaseConnection {
                 name TEXT NOT NULL,
                 series_id INTEGER NOT NULL,
                 collection_number INTEGER NOT NULL,
-                number TEXT NOT NULL UNIQUE,
+                number TEXT NOT NULL,
                 in_collection INTEGER NOT NULL DEFAULT 0,
                 rarity_id INTEGER NOT NULL,
                 card_type_id INTEGER NOT NULL,
                 FOREIGN KEY (rarity_id) REFERENCES rarity(id)
                 FOREIGN KEY (series_id) REFERENCES series(id)
                 FOREIGN KEY (card_type_id) REFERENCES card_type(id)
+                UNIQUE (number, rarity_id)
             )",
             [],
         )?;
@@ -187,7 +188,12 @@ impl DatabaseConnection {
         }
     }
 
-    pub fn collect_card(&self, card_id: &str, count: Option<i32>) -> Result<i32, DbError> {
+    pub fn collect_card(
+        &self,
+        card_id: &str,
+        rarity_id: i32,
+        count: Option<i32>,
+    ) -> Result<i32, DbError> {
         // Check if the card_id contains a range (e.g., "LOB-001-010")
         if let Some((prefix, series_prefix, start, end)) = parse_card_range(card_id) {
             // Update all cards in the range
@@ -236,25 +242,25 @@ impl DatabaseConnection {
             .query_row(
                 "UPDATE cards
                     SET in_collection = in_collection + ?1
-                    WHERE number = ?2
+                    WHERE number = ?2 and rarity_id = ?3
                     RETURNING in_collection",
-                params![final_count, card_id],
+                params![final_count, card_id, rarity_id], //TODO: check for what rarity as well for some cards with alternative rarities
                 |row| row.get(0),
             )
             .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
         Ok(new_count)
     }
 
-    pub fn sell_card(&self, card_id: &str, count: i32) -> Result<i32, DbError> {
+    pub fn sell_card(&self, card_id: &str, rarity_id: i32, count: i32) -> Result<i32, DbError> {
         // Helper closure to update a single card
         let sell_single = |conn: &rusqlite::Connection, number: &str| -> Result<i32, DbError> {
             let new_count: Option<i32> = conn
                 .query_row(
                     "UPDATE cards
                  SET in_collection = in_collection - ?2
-                 WHERE number = ?1 AND in_collection -?2>=0
+                 WHERE number = ?1 AND in_collection -?2>=0 and rarity_id=?3
                  RETURNING in_collection",
-                    params![number, count],
+                    params![number, count, rarity_id],
                     |row| row.get(0),
                 )
                 .optional() // returns None if no rows updated

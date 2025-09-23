@@ -256,7 +256,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             //for collecting card id's (e.g. PSV-EN001)
 
             for card_id in id {
-                let new_count = db.collect_card(&card_id, count)?;
+                let new_count = db.collect_card(&card_id, 0, count)?;
                 println!(
                     "Card {} now has {} copies in collection.",
                     card_id, new_count
@@ -269,9 +269,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 eprintln!("--id is required for a sell action"); // print to stderr
                 std::process::exit(1); // exit with error code
             }
-
+            let rarity_id = 0;
             for card_id in id {
-                let new_count = db.sell_card(&card_id, count)?;
+                let new_count = db.sell_card(&card_id, rarity_id, count)?;
                 println!(
                     "Card removed. Card {} now has {} copies in collection.",
                     card_id, new_count

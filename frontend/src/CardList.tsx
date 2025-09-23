@@ -18,7 +18,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Card;
     direction: "asc" | "desc";
-  } | null>(null);
+  } | null>({ key: "number", direction: "asc" });
 
   // Filter state: "all" | "collected" | "uncollected"
   const [collectionFilter, setCollectionFilter] = useState<
@@ -65,9 +65,9 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
 
   const handleIncrement = async (card: Card) => {
     //pass null to increment by one
-    await updateCard(card.number, null);
+    await updateCard(card.number, card.rarity, null);
     const newcards = initialCards.map((c) =>
-      c.number === card.number
+      c.number === card.number && c.rarity.id === card.rarity.id
         ? { ...c, in_collection: (c.in_collection ?? 0) + 1 }
         : c
     );
@@ -75,9 +75,9 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
   };
 
   const handleDecrement = async (card: Card) => {
-    await updateCard(card.number, -1);
+    await updateCard(card.number, card.rarity, -1);
     const newcards = initialCards.map((c) =>
-      c.number === card.number
+      c.number === card.number && c.rarity.id === card.rarity.id
         ? { ...c, in_collection: (c.in_collection ?? 0) - 1 }
         : c
     );
@@ -86,23 +86,39 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
 
   const sortBy = (key: keyof Card) => {
     let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc")
-      direction = "desc";
 
-    const newcards = [...initialCards].sort((a, b) => {
-      const aValue = a[key] ?? "";
-      const bValue = b[key] ?? "";
+    if (
+      sortConfig &&
+      sortConfig.key === key &&
+      sortConfig.direction === "asc"
+    ) {
+      direction = "desc";
+    }
+
+    const newCards = [...initialCards].sort((a, b) => {
+      let aValue: string | number = "";
+      let bValue: string | number = "";
+
+      if (key === "rarity") {
+        // special case: compare rarity.name
+        aValue = a.rarity?.name ?? "";
+        bValue = b.rarity?.name ?? "";
+      } else {
+        aValue = a[key] as string | number;
+        bValue = b[key] as string | number;
+      }
 
       let comparison = 0;
-      if (typeof aValue === "string" && typeof bValue === "string")
+      if (typeof aValue === "string" && typeof bValue === "string") {
         comparison = aValue.localeCompare(bValue);
-      else if (typeof aValue === "number" && typeof bValue === "number")
+      } else if (typeof aValue === "number" && typeof bValue === "number") {
         comparison = aValue - bValue;
+      }
 
       return direction === "asc" ? comparison : -comparison;
     });
 
-    setInitialCards(newcards);
+    setInitialCards(newCards);
     setSortConfig({ key, direction });
   };
 
@@ -267,7 +283,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
             </th>
             <th
               className="border p-2 cursor-pointer"
-              onClick={() => sortBy("cardtype")}
+              onClick={() => sortBy("cardtype_display")}
             >
               Card-Type {renderSortIcon("cardtype")}
             </th>

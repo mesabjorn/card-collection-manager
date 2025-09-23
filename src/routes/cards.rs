@@ -103,6 +103,7 @@ async fn search_cards(
 #[derive(Debug, Deserialize)]
 pub struct UpdateCardRequest {
     pub id: String,
+    pub rarity_id: i32,
     #[serde(default)] // optional, defaults to None if missing
     pub number: Option<i32>, //number in collection, defaults to add 1
 }
@@ -117,6 +118,7 @@ async fn update_card_count(
     let number = payload.number; // Option<i32>
 
     let id = payload.id;
+    let rarity_id = payload.rarity_id;
 
     let result: Result<i32, DbError> = task::spawn_blocking(move || {
         let db = db.lock().unwrap();
@@ -124,12 +126,12 @@ async fn update_card_count(
         match number {
             Some(-1) => {
                 // Selling card
-                db.sell_card(&id, 1).map(|_| -1) // return -1 or any meaningful marker
+                db.sell_card(&id, rarity_id, 1).map(|_| -1) // return -1 or any meaningful marker
             }
             other => {
                 // Collecting card, default Some(1)
                 //let count = other.or(Some(1));
-                db.collect_card(&id, other)
+                db.collect_card(&id, rarity_id, other)
             }
         }
     })

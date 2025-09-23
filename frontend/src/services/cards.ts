@@ -12,7 +12,7 @@ export interface Card {
   series: Series;
   rarity: Rarity;
   cardtype: CardType;
-  cardtype_display: String;
+  cardtype_display: string;
 }
 
 export interface Rarity {
@@ -21,16 +21,16 @@ export interface Rarity {
 }
 
 export interface CardType {
-  main:String;
-  sub:String;  
+  main: String;
+  sub: String;
 }
 
 export interface Series {
   name: string;
-  id:number;
-  n_cards:number;
-  prefix:string;
-  release_date:string;
+  id: number;
+  n_cards: number;
+  prefix: string;
+  release_date: string;
 }
 
 export async function getCards(query?: string) {
@@ -42,8 +42,16 @@ export async function getCards(query?: string) {
   return res.data;
 }
 
-export async function updateCard(id: String, number: number|null) {
-  const res = await api.put<number>("/cards", {id,number});
+export async function updateCard(
+  id: String,
+  rarity: Rarity,
+  number: number | null
+) {
+  const res = await api.put<number>("/cards", {
+    id,
+    rarity_id: rarity.id,
+    number,
+  });
   return res.data;
 }
 
@@ -51,4 +59,3 @@ export async function getSeries() {
   const res = await api.get<Series[]>("/series");
   return res.data;
 }
-

@@ -126,12 +126,27 @@ async fn update_card_count(
         match number {
             Some(-1) => {
                 // Selling card
-                db.sell_card(&id, rarity_id, 1).map(|_| -1) // return -1 or any meaningful marker
+                db.sell_card(
+                    &id,
+                    Some(Rarity {
+                        id: rarity_id,
+                        name: "".to_string(),
+                    }),
+                    None,
+                )
+                .map(|_| -1) // return -1 or any meaningful marker
             }
             other => {
                 // Collecting card, default Some(1)
                 //let count = other.or(Some(1));
-                db.collect_card(&id, rarity_id, other)
+                db.collect_card(
+                    &id,
+                    Some(Rarity {
+                        id: rarity_id,
+                        name: "".to_string(),
+                    }),
+                    other,
+                )
             }
         }
     })

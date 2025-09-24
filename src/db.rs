@@ -188,113 +188,140 @@ impl DatabaseConnection {
         }
     }
 
+    fn update_collection_count(
+        &self,
+        conn: &rusqlite::Connection,
+        number: &str,
+        rarity: Option<Rarity>,
+        count: i32,
+    ) -> Result<i32, DbError> {
+        let mut stmt = conn.prepare(
+            "SELECT c.rarity_id, r.name 
+         FROM cards c
+         JOIN rarity r ON r.id = c.rarity_id
+         WHERE c.number = ?1",
+        )?;
+
+        let rows: Vec<Rarity> = stmt
+            .query_map(params![number], |row| {
+                Ok(Rarity {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        match rows.len() {
+            0 => Err(DbError::InvalidOperation(format!(
+                "No card found with number '{}'",
+                number
+            ))),
+            1 => {
+                let chosen_rarity = rarity.unwrap_or(rows[0].clone());
+                println!(
+                    "Collecting card number: {}, rarity {}, count: {}",
+                    number, chosen_rarity.name, count
+                );
+
+                conn.query_row(
+                    "UPDATE cards
+                 SET in_collection = in_collection + ?2
+                 WHERE number = ?1 AND rarity_id = ?3 AND in_collection +?2>=0
+                 RETURNING in_collection",
+                    params![number, count, chosen_rarity.id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(DbError::from)?
+                .ok_or_else(|| {
+                    DbError::InvalidOperation(format!(
+                        "Could not collect card '{}' with rarity '{}'",
+                        number, chosen_rarity.name
+                    ))
+                })
+            }
+            _ => {
+                if rarity.is_none() {
+                    return Err(DbError::InvalidOperation(format!(
+                        "Multiple rarities found for card '{}', please specify rarity.",
+                        number
+                    )));
+                }
+                let chosen_rarity = rarity.unwrap();
+                conn.query_row(
+                    "UPDATE cards
+                 SET in_collection = in_collection + ?2
+                 WHERE number = ?1 AND rarity_id = ?3 AND in_collection +?2>=0
+                 RETURNING in_collection",
+                    params![number, count, chosen_rarity.id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(DbError::from)?
+                .ok_or_else(|| {
+                    DbError::InvalidOperation(format!(
+                        "Could not collect card '{}' with rarity '{}'",
+                        number, chosen_rarity.name
+                    ))
+                })
+            }
+        }
+    }
+
     pub fn collect_card(
         &self,
         card_id: &str,
-        rarity_id: i32,
+        rarity: Option<Rarity>,
         count: Option<i32>,
     ) -> Result<i32, DbError> {
-        // Check if the card_id contains a range (e.g., "LOB-001-010")
+        let final_count = count.unwrap_or(1);
+
+        // Range case
         if let Some((prefix, series_prefix, start, end)) = parse_card_range(card_id) {
-            // Update all cards in the range
             let mut total_updated = 0;
             for num in start..=end {
-                let card_number = format!(
-                    "{}-{}{:03}",
-                    prefix,
-                    series_prefix.unwrap_or(""), // use empty string if None
-                    num
-                );
-                let new_count: i32 = if let Some(c) = count {
-                    println!("Collecting {} copies of '{}'", card_number, c);
-                    self.conn
-                        .query_row(
-                            "UPDATE cards
-                            SET in_collection = in_collection+?1
-                            WHERE number = ?2
-                            RETURNING in_collection",
-                            params![c, card_number],
-                            |row| row.get(0),
-                        )
-                        .map_err(DbError::from)?
-                } else {
-                    self.conn
-                        .query_row(
-                            "UPDATE cards
-                        SET in_collection = in_collection + 1
-                        WHERE number = ?1
-                        RETURNING in_collection",
-                            params![card_number],
-                            |row| row.get(0),
-                        )
-                        .map_err(DbError::from)?
-                };
-                total_updated += new_count;
+                let card_number = format!("{}-{}{:03}", prefix, series_prefix.unwrap_or(""), num);
+                println!("Collecting '{}'", card_number);
+                total_updated += self.update_collection_count(
+                    &self.conn,
+                    &card_number,
+                    rarity.clone(),
+                    final_count,
+                )?;
             }
             return Ok(total_updated);
         }
 
-        let final_count = count.unwrap_or_else(|| 1); //default to increment by one
-
-        //no count specified, add 1 to existing collection
-        let new_count: i32 = self
-            .conn
-            .query_row(
-                "UPDATE cards
-                    SET in_collection = in_collection + ?1
-                    WHERE number = ?2 and rarity_id = ?3
-                    RETURNING in_collection",
-                params![final_count, card_id, rarity_id], //TODO: check for what rarity as well for some cards with alternative rarities
-                |row| row.get(0),
-            )
-            .map_err(DbError::from)?; // convert rusqlite::Error to DbError if needed
-        Ok(new_count)
+        // Single card
+        self.update_collection_count(&self.conn, card_id, rarity, final_count)
     }
 
-    pub fn sell_card(&self, card_id: &str, rarity_id: i32, count: i32) -> Result<i32, DbError> {
-        // Helper closure to update a single card
-        let sell_single = |conn: &rusqlite::Connection, number: &str| -> Result<i32, DbError> {
-            let new_count: Option<i32> = conn
-                .query_row(
-                    "UPDATE cards
-                 SET in_collection = in_collection - ?2
-                 WHERE number = ?1 AND in_collection -?2>=0 and rarity_id=?3
-                 RETURNING in_collection",
-                    params![number, count, rarity_id],
-                    |row| row.get(0),
-                )
-                .optional() // returns None if no rows updated
-                .map_err(DbError::from)?;
+    pub fn sell_card(
+        &self,
+        card_id: &str,
+        rarity: Option<Rarity>,
+        count: Option<i32>,
+    ) -> Result<i32, DbError> {
+        let final_count = count.unwrap_or(-1);
 
-            match new_count {
-                Some(count) => Ok(count),
-                None => Err(DbError::InvalidOperation(format!(
-                    "Could not sell card '{}': Number of copies in collection cannot become negative.",
-                    number
-                ))),
-            }
-        };
-
-        // Range case (e.g., "LOB-001-010")
+        // Range case
         if let Some((prefix, series_prefix, start, end)) = parse_card_range(card_id) {
             let mut total_updated = 0;
-
             for num in start..=end {
-                let card_number = format!(
-                    "{}-{}{:03}",
-                    prefix,
-                    series_prefix.unwrap_or(""), // use empty string if None
-                    num
-                );
+                let card_number = format!("{}-{}{:03}", prefix, series_prefix.unwrap_or(""), num);
                 println!("Selling '{}'", card_number);
-                total_updated += sell_single(&self.conn, &card_number)?;
+                total_updated += self.update_collection_count(
+                    &self.conn,
+                    &card_number,
+                    rarity.clone(),
+                    final_count,
+                )?;
             }
-
             return Ok(total_updated);
         }
 
-        // Single card case
-        sell_single(&self.conn, card_id)
+        // Single card
+        self.update_collection_count(&self.conn, card_id, rarity, final_count)
     }
 
     /// Query cards with rarity name joined
@@ -405,14 +432,29 @@ impl DatabaseConnection {
         }
     }
 
-    pub fn get_rarity_id(&self, rarity_name: &str) -> Result<i32, DbError> {
-        let mut stmt = self.conn.prepare("SELECT id FROM rarity WHERE name = ?1")?;
-        match stmt.query_row([rarity_name], |r| r.get(0)) {
-            Ok(id) => Ok(id),
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                Err(DbError::UnknownRarity(rarity_name.into()))
+    pub fn get_rarity_by_name(
+        &self,
+        rarity_name: &Option<String>,
+    ) -> Result<Option<Rarity>, DbError> {
+        match rarity_name {
+            Some(name) => {
+                let mut stmt = self
+                    .conn
+                    .prepare("SELECT id,name FROM rarity WHERE name = ?1")?;
+                match stmt.query_row([name], |row| {
+                    Ok(Rarity {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                }) {
+                    Ok(rarity) => Ok(Some(rarity)),
+                    Err(rusqlite::Error::QueryReturnedNoRows) => {
+                        Err(DbError::UnknownRarity(name.into()))
+                    }
+                    Err(e) => Err(DbError::SqliteError(e)),
+                }
             }
-            Err(e) => Err(DbError::SqliteError(e)),
+            None => Ok(None), // no rarity specified
         }
     }
 
@@ -487,6 +529,35 @@ impl DatabaseConnection {
         })?;
 
         Ok(series_iter.filter_map(Result::ok).collect())
+    }
+
+    pub fn get_rarities(&self) -> Result<Vec<Rarity>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name FROM rarity order by name")?;
+
+        let rarity_iter = stmt.query_map([], |row| {
+            Ok(Rarity {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })?;
+
+        Ok(rarity_iter.filter_map(Result::ok).collect())
+    }
+    pub fn get_card_types(&self) -> Result<Vec<CardType>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, maintype, subtype FROM card_type order by maintype")?;
+
+        let cardtype_iter = stmt.query_map([], |row| {
+            Ok(CardType {
+                main: row.get(1)?,
+                sub: row.get(2)?,
+            })
+        })?;
+
+        Ok(cardtype_iter.filter_map(Result::ok).collect())
     }
 }
 

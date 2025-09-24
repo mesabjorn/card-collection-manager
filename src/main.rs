@@ -12,6 +12,8 @@ use card_collection_manager::{
     series::Series,
 };
 
+use card_collection_manager::dberror::DbError;
+
 use clap::Parser;
 use open;
 
@@ -174,11 +176,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let mut cnt = 0;
                     for c in series_json.cards {
                         let (_, collection_number) = get_series_and_number(&c.card_number);
+
+                        let rarity_id =
+                            db.get_rarity_by_name(&Some(c.rarity))?.ok_or_else(|| {
+                                DbError::InvalidOperation(format!(
+                                    "Card '{}' is missing a required rarity",
+                                    c.name
+                                ))
+                            })?;
+
                         let card = DatabaseCard {
                             name: c.name.clone(),
                             number: c.card_number,
                             collection_number: collection_number,
-                            rarity_id: db.get_rarity_id(&c.rarity)?, // directly i32
+                            rarity_id: rarity_id.id,
                             series_id: series_id,
                             in_collection: 0,
                             card_type_id: db.get_card_type_id(&c.category)?,
@@ -235,43 +246,53 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     for s in series_list {
                         println!(
-                            "{}. {} | {} | {} cards",
-                            cnt, s.name, s.release_date, s.n_cards
+                            "{}. {} | {} | {} | {} cards",
+                            cnt,
+                            s.prefix.unwrap_or("".to_string()),
+                            s.name,
+                            s.release_date,
+                            s.n_cards
                         );
                         cnt += 1;
                     }
                 }
                 "rarities" => {
-                    println!("Not yet implemented...");
+                    let rows = db.get_rarities()?;
+                    for r in rows {
+                        println!("{}", r);
+                    }
                 }
                 "card-types" => {
-                    println!("Not yet implemented...");
+                    let rows = db.get_card_types()?;
+                    for c in rows {
+                        println!("{}", c);
+                    }
                 }
                 _ => {
                     println!("Unknown kind: {}", kind);
                 }
             }
         }
-        Command::Collect { id, count } => {
+        Command::Collect { id, rarity, count } => {
             //for collecting card id's (e.g. PSV-EN001)
-
+            let rarity = db.get_rarity_by_name(&rarity)?;
             for card_id in id {
-                let new_count = db.collect_card(&card_id, 0, count)?;
+                let new_count = db.collect_card(&card_id, rarity.clone(), count)?;
                 println!(
                     "Card {} now has {} copies in collection.",
                     card_id, new_count
                 );
             }
         }
-        Command::Sell { id, count } => {
+        Command::Sell { id, rarity, count } => {
             //for collecting card id's (e.g. PSV-EN001)
             if id.len() == 0 {
                 eprintln!("--id is required for a sell action"); // print to stderr
                 std::process::exit(1); // exit with error code
             }
-            let rarity_id = 0;
+            let rarity = db.get_rarity_by_name(&rarity)?;
             for card_id in id {
-                let new_count = db.sell_card(&card_id, rarity_id, count)?;
+                let new_count = db.sell_card(&card_id, rarity.clone(), count)?;
                 println!(
                     "Card removed. Card {} now has {} copies in collection.",
                     card_id, new_count

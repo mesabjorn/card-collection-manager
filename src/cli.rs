@@ -63,6 +63,10 @@ pub enum Command {
         /// Set all cards to this number of cards in the collection
         #[arg(long)]
         count: Option<i32>,
+
+        /// Cards with non-unique numbers require a specified alternative rarity name (e.g. Common, Secret Rare, Ultra rare etc)
+        #[arg(long)]
+        rarity: Option<String>,
     },
     /// Sell a card
     Sell {
@@ -70,8 +74,11 @@ pub enum Command {
         #[arg(long, num_args = 1..)]
         id: Vec<String>,
 
-        #[arg(long, default_value = "1")]
-        count: i32,
+        #[arg(long, default_value = "-1")]
+        count: Option<i32>,
+
+        #[arg(long)]
+        rarity: Option<String>,
     },
     Find {
         /// Kind of entity to list [serie | cards]

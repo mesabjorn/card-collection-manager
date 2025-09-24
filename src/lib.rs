@@ -3,7 +3,7 @@ pub mod cardtype;
 pub mod cli;
 pub mod copy;
 pub mod db;
-mod dberror; //custom db errors
+pub mod dberror; //custom db errors
 pub mod jsoncards;
 pub mod rarity;
 pub mod series;

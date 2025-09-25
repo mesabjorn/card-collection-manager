@@ -1,12 +1,13 @@
 function filterRarity(text) {
   //replace short prints with common
+
   if (text.indexOf("Short Print") > -1) {
-    return "Common";
+    return ["Common"];
   }
-  if (text.indexOf("\n") > -1) {
-    text = text.split("\n")[0];
-  }
-  return text.trim();
+
+  let texts = text.split("\n");
+
+  return texts.map((t) => t.trim());
 }
 
 String.prototype.capitalize = function () {
@@ -45,13 +46,16 @@ const getCardsFromTable = (table) => {
 
   for (let r of rows) {
     const cells = r.querySelectorAll("td");
-    const card = {
-      card_number: cells[0]?.innerText.trim() || "",
-      name: cells[1]?.innerText.replace(/"/g, "").trim() || "",
-      rarity: cells[2] ? filterRarity(cells[2].innerText) : "",
-      category: cells[3]?.innerText.trim().capitalize() || "",
-    };
-    cards.push(card);
+    const rarities = cells[2] ? filterRarity(cells[2].innerText) : "";
+    for (let rarity of rarities) {
+      const card = {
+        card_number: cells[0]?.innerText.trim() || "",
+        name: cells[1]?.innerText.replace(/"/g, "").trim() || "",
+        rarity: rarity,
+        category: cells[3]?.innerText.trim().capitalize() || "",
+      };
+      cards.push(card);
+    }
   }
   return cards;
 };

@@ -78,7 +78,6 @@ function tableToJson() {
       allCards = [...allCards, ...cards];
     }
   }
-  console.log({ allCards });
   return allCards;
 }
 

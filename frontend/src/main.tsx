@@ -7,16 +7,20 @@ import { getSeries, type Series } from "./services/cards.ts";
 
 const App = () => {
   const [series, setSeries] = useState<Series[]>([]);
-  const [selectedSeriesId, setSelectedSeriesId] = useState<number | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
 
-  const handleChangeSelection = (id: number) => {
-    const newSelection = id === selectedSeriesId ? null : id;
-    setSelectedSeriesId(newSelection);
+  const handleChangeSelection = (series: Series) => {
+    if (!selectedSeries) {
+      setSelectedSeries(series);
+      return;
+    }
+    const newSelection = series.id === selectedSeries!.id ? null : series;
+    setSelectedSeries(newSelection);
   };
 
   const fetchSeries = async () => {
     const data = await getSeries();
-    
+
     setSeries(data);
   };
 
@@ -34,15 +38,18 @@ const App = () => {
           {/* Left column */}
           <div className="col-span-3">
             <SeriesFilter
-              currentSelection={selectedSeriesId}
+              currentSelection={selectedSeries}
               series={series}
-              onSelect={handleChangeSelection}
+              onSelect={(id) => {
+                const clickedSeries = series.filter((s) => s.id === id)[0];
+                handleChangeSelection(clickedSeries);
+              }}
             />
           </div>
 
           {/* Right column */}
           <div className="col-span-9">
-            <CardList seriesId={selectedSeriesId} />
+            <CardList series={selectedSeries} />
           </div>
         </div>
       </div>

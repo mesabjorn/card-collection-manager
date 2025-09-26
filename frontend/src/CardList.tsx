@@ -4,6 +4,7 @@ import {
   type Card,
   updateCard,
   type CardType,
+  type Series,
 } from "./services/cards.ts";
 import { ChevronUp, ChevronDown } from "lucide-react";
 
@@ -11,7 +12,7 @@ import "./App.css";
 import InputWithClearButton from "./InputWithClearButton.tsx";
 import ToggleButtons from "./ToggleButtonsGroup.tsx";
 
-export function CardList({ seriesId }: { seriesId: number | null }) {
+export function CardList({ series }: { series: Series | null }) {
   const [initialCards, setInitialCards] = useState<Card[]>([]);
   const [visibleCards, setVisibleCards] = useState<Card[]>([]);
   const [search, setSearch] = useState("");
@@ -32,8 +33,6 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     setVisibleCards(data);
   };
 
-  console.log({ initialCards });
-
   useEffect(() => {
     fetchCards();
   }, []);
@@ -44,7 +43,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
         const matchesSearch = c.name
           .toLowerCase()
           .includes(search.toLowerCase());
-        const matchesSeries = !seriesId || c.series.id === seriesId;
+        const matchesSeries = !series || c.series.id === series.id;
 
         let matchesCollected = true;
         if (collectionFilter === "collected")
@@ -61,7 +60,7 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
         );
       })
     );
-  }, [initialCards, search, seriesId, collectionFilter, selectedRarities]);
+  }, [initialCards, search, series, collectionFilter, selectedRarities]);
 
   const handleIncrement = async (card: Card) => {
     //pass null to increment by one
@@ -208,6 +207,29 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
     window.open(`https://yugioh.fandom.com/wiki/${propername}`);
   };
 
+  function slugify(str:string) {
+  return str
+    .toLowerCase()                 // optional: normalize case
+    .replace(/\s+/g, "-")          // replace spaces with dashes
+    .replace(/[^a-z0-9\-]/gi, "")  // remove everything except letters, numbers, and dashes
+    .replace(/-+/g, "-")           // collapse multiple dashes
+    .replace(/^-|-$/g, "");        // trim leading/trailing dashes
+  }
+
+  const buyCard = (card: Card, seriesName: string) => {
+    const propername = slugify(card.name);
+    const properSeriesName = slugify(seriesName);
+    const properRarity = slugify(card.rarity.name);
+
+    
+
+    const url = `https://www.cardmarket.com/en/YuGiOh/Products/Singles/${properSeriesName}?searchString=${card.name}&idRarity=5&perSite=20`;
+    console.log({url});
+    window.open(
+      url
+    );
+  };
+
   return (
     <div className="p-8 col-span-3">
       {/* Filter bar */}
@@ -297,8 +319,17 @@ export function CardList({ seriesId }: { seriesId: number | null }) {
               className="hover:!bg-sky-700"
               style={bgColorFromCardType(card.cardtype)}
             >
-              <td className="border p-2" onClick={() => browseForCard(card)}>
-                {card.name}
+              <td className="border p-2">
+                <div onClick={() => browseForCard(card)}>{card.name}</div>
+                <div
+                  title="Buy on cardmarket"
+                  onClick={() => {
+                    if (!series) return;
+                    buyCard(card, series.name);
+                  }}
+                >
+                  Buy
+                </div>
               </td>
               <td className="border p-2">{card.number}</td>
               <td className="border p-2">{card.in_collection}</td>

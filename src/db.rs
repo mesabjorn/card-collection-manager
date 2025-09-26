@@ -579,10 +579,17 @@ pub fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
     db.insert_card_type("Spell Card", "Equip")?;
     db.insert_card_type("Spell Card", "Field")?;
     db.insert_card_type("Spell Card", "Quick-Play")?;
+    db.insert_card_type("Spell Card", "Continuous")?;
+    db.insert_card_type("Spell Card", "Ritual")?;
+    db.insert_card_type("Card", "Skill")?;
     db.insert_card_type("Monster", "Normal")?;
     db.insert_card_type("Monster", "Flip")?;
     db.insert_card_type("Monster", "Effect")?;
     db.insert_card_type("Monster", "Union")?;
+    db.insert_card_type("Monster", "Toon")?;
+    db.insert_card_type("Monster", "Gemini")?;
+    db.insert_card_type("Ritual Monster", "Normal")?;
+    db.insert_card_type("Ritual Monster", "Effect")?;
     db.insert_card_type("Fusion Monster", "Normal")?;
     db.insert_card_type("Fusion Monster", "Effect")?;
     db.insert_card_type("Trap Card", "Normal")?;

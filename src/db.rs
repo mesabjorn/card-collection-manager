@@ -572,7 +572,7 @@ pub fn setup(dbname: &str) -> Result<DatabaseConnection, Box<dyn Error>> {
     db.insert_rarity("Ultra Rare")?;
     db.insert_rarity("Secret Rare")?;
     db.insert_rarity("Starlight Rare")?;
-    db.insert_rarity("Quarter Century Rare")?;
+    db.insert_rarity("Quarter Century Secret Rare")?;
 
     // Insert card types
     db.insert_card_type("Spell Card", "Normal")?;

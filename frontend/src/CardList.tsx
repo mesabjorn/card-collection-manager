@@ -6,7 +6,7 @@ import {
   type CardType,
   type Series,
 } from "./services/cards.ts";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, ShoppingCart } from "lucide-react";
 
 import "./App.css";
 import InputWithClearButton from "./InputWithClearButton.tsx";
@@ -207,27 +207,38 @@ export function CardList({ series }: { series: Series | null }) {
     window.open(`https://yugioh.fandom.com/wiki/${propername}`);
   };
 
-  function slugify(str:string) {
-  return str
-    .toLowerCase()                 // optional: normalize case
-    .replace(/\s+/g, "-")          // replace spaces with dashes
-    .replace(/[^a-z0-9\-]/gi, "")  // remove everything except letters, numbers, and dashes
-    .replace(/-+/g, "-")           // collapse multiple dashes
-    .replace(/^-|-$/g, "");        // trim leading/trailing dashes
+  function slugify(str: string) {
+    return str
+      .toLowerCase() // optional: normalize case
+      .replace(/\s+/g, "-") // replace spaces with dashes
+      .replace(/[^a-z0-9\-]/gi, "") // remove everything except letters, numbers, and dashes
+      .replace(/-+/g, "-") // collapse multiple dashes
+      .replace(/^-|-$/g, ""); // trim leading/trailing dashes
   }
 
-  const buyCard = (card: Card, seriesName: string) => {
-    const propername = slugify(card.name);
+  const getCardMarketRarityIdByRarityName = (name: string): number => {
+    const mapping: Record<string, number> = {
+      Common: 29,
+      Rare: 28,
+      "Super Rare": 3,
+      "Ultra Rare": 4,
+      "Secret Rare": 5,
+      "Prismatic Secret Rare": 5,
+      "Starlight Rare": 196,
+      "Quarter Century Secret Rare": 292,
+    };
+    return mapping[name] ?? 0; // returns 0 if not found
+  };
+
+  const buyCard = (card: Card, seriesName: string): void => {
     const properSeriesName = slugify(seriesName);
-    const properRarity = slugify(card.rarity.name);
-
-    
-
-    const url = `https://www.cardmarket.com/en/YuGiOh/Products/Singles/${properSeriesName}?searchString=${card.name}&idRarity=5&perSite=20`;
-    console.log({url});
-    window.open(
-      url
+    const cardMarketRarity = getCardMarketRarityIdByRarityName(
+      card.rarity.name
     );
+
+    const url = `https://www.cardmarket.com/en/YuGiOh/Products/Singles/${properSeriesName}?searchString=${card.name}&idRarity=${cardMarketRarity}&perSite=20`;
+    console.log({ url });
+    window.open(url);
   };
 
   return (
@@ -316,20 +327,23 @@ export function CardList({ series }: { series: Series | null }) {
           {visibleCards.map((card, i) => (
             <tr
               key={i}
-              className="hover:!bg-sky-700"
+              className="hover:!bg-sky-400"
               style={bgColorFromCardType(card.cardtype)}
             >
               <td className="border p-2">
-                <div onClick={() => browseForCard(card)}>{card.name}</div>
                 <div
-                  title="Buy on cardmarket"
+                  className="hover:underline cursor-pointer"
+                  onClick={() => browseForCard(card)}
+                >
+                  {card.name}
+                </div>
+                {series && <ShoppingCart
+                  size={16}
+                  className="inline ml-1 hover:scale-125 cursor-pointer"
                   onClick={() => {
-                    if (!series) return;
                     buyCard(card, series.name);
                   }}
-                >
-                  Buy
-                </div>
+                ></ShoppingCart>}
               </td>
               <td className="border p-2">{card.number}</td>
               <td className="border p-2">{card.in_collection}</td>

@@ -151,7 +151,7 @@ const main = () => {
       };
       const text = JSON.stringify(jsonData, null, 2);
       toClipboard(text);
-      btn.innerText = "✅ Copied!";
+      btn.innerText = `✅ Copied ${jsonData.cards.length} cards to clipboard`;
       setTimeout(() => (btn.innerText = "📋 Copy Data"), 1500);
     });
 

@@ -10,5 +10,5 @@
 3. Copy to a new json file:
 
 ```ps
-Get-Clipboard | out-file -encoding ascii <filename>.json
+Get-Clipboard | out-file -encoding utf8nobom <filename>.json
 ```

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import {
   getCards,
   type Card,
@@ -6,11 +6,100 @@ import {
   type CardType,
   type Series,
 } from "./services/cards.ts";
-import { ChevronUp, ChevronDown, ShoppingCart } from "lucide-react";
+import { ChevronUp, ChevronDown, ShoppingCart, Copy } from "lucide-react";
 
 import "./App.css";
 import InputWithClearButton from "./InputWithClearButton.tsx";
 import ToggleButtons from "./ToggleButtonsGroup.tsx";
+import { toast } from "react-toastify";
+
+function SelectAsCardMarketButton({
+  data,
+  series,
+}: {
+  series: Series | null;
+  data: Card[] | null;
+}) {
+  // renders a copy to cardmarket button fixed to the bottom right
+  // when a series is selected to create quick wants list of filtered cards
+
+  const getFormattedData = (cards: Card[]) => {
+    let result = "";
+    for (const c of cards) {
+      result += `${c.name} (${series?.name})\n`;
+    }
+    return result;
+  };
+
+  const copyToClipboard = async () => {
+    if (navigator.clipboard && window.isSecureContext) {
+      const promise = new Promise<JSX.Element>(async (resolve, reject) => {
+        if (!data || data.length === 0) {
+          reject("No data to copy.");
+          return;
+        }
+        if (!series) {
+          reject("No series selected.");
+          return;
+        }
+
+        try {
+          const formattedData = getFormattedData(data);
+          await navigator.clipboard.writeText(formattedData);
+
+          // Build JSX here and resolve it
+          resolve(
+            <div>
+              <div>
+                Copied {data.length} item{data.length !== 1 && "s"} to
+                clipboard.
+              </div>
+              <a
+                className="underline"
+                href="https://www.cardmarket.com/en/YuGiOh/Wants"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open CardMarket Wants
+              </a>
+            </div>
+          );
+        } catch (err) {
+          reject("Failed to write to clipboard.");
+        }
+      });
+
+      toast.promise(promise, {
+        pending: "Formatting list...",
+        success: {
+          render({ data }) {
+            return data; // <- this is your JSX
+          },
+        },
+        error:
+          "Error copying data: Make sure you selected one series and at least one card is visible",
+      });
+    } else {
+      toast.error("Clipboard not supported in this browser/context.");
+    }
+  };
+
+  if (!data || !series) return null;
+
+  return (
+    <div
+      className="fixed right-0 bottom-0"
+      title={`Copy current ${data.length} cards as a cardmarket wishlist format: {cardname} ({series name})`}
+    >
+      <button onClick={copyToClipboard}>
+        <div className="flex gap-2 items-center">
+          <Copy />
+          CardMarket
+        </div>
+      </button>
+    </div>
+  );
+}
 
 export function CardList({ series }: { series: Series | null }) {
   const [initialCards, setInitialCards] = useState<Card[]>([]);
@@ -276,7 +365,6 @@ export function CardList({ series }: { series: Series | null }) {
         </div>
       </div>
       <div className="flex justify-center w-full">
-        {" "}
         <ToggleButtons
           options={rarities}
           selected={selectedRarities}
@@ -337,13 +425,15 @@ export function CardList({ series }: { series: Series | null }) {
                 >
                   {card.name}
                 </div>
-                {series && <ShoppingCart
-                  size={16}
-                  className="inline ml-1 hover:scale-125 cursor-pointer"
-                  onClick={() => {
-                    buyCard(card, series.name);
-                  }}
-                ></ShoppingCart>}
+                {series && (
+                  <ShoppingCart
+                    size={16}
+                    className="inline ml-1 hover:scale-125 cursor-pointer"
+                    onClick={() => {
+                      buyCard(card, series.name);
+                    }}
+                  ></ShoppingCart>
+                )}
               </td>
               <td className="border p-2">{card.number}</td>
               <td className="border p-2">{card.in_collection}</td>
@@ -367,6 +457,7 @@ export function CardList({ series }: { series: Series | null }) {
           ))}
         </tbody>
       </table>
+      <SelectAsCardMarketButton data={visibleCards} series={series} />
     </div>
   );
 }

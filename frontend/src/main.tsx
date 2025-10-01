@@ -4,6 +4,7 @@ import "./index.css";
 import CardList from "./CardList.tsx";
 import SeriesFilter from "./SeriesFilter.tsx";
 import { getSeries, type Series } from "./services/cards.ts";
+import { ToastContainer } from "react-toastify";
 
 const App = () => {
   const [series, setSeries] = useState<Series[]>([]);
@@ -30,6 +31,7 @@ const App = () => {
 
   return (
     <>
+      <ToastContainer theme={"colored"} />
       <div className="container mx-auto min-h-screen">
         <h1 className="text-2xl font-bold mb-4">Card Collection</h1>
 

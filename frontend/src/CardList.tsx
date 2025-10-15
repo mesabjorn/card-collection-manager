@@ -313,6 +313,10 @@ export function CardList({ series }: { series: Series | null }) {
       "Ultra Rare": 4,
       "Secret Rare": 5,
       "Prismatic Secret Rare": 5,
+      Token: 38,
+      Special: 30,
+      "Ghost Rare": 13,
+      "Ultimate Rare": 12,
       "Starlight Rare": 196,
       "Quarter Century Secret Rare": 292,
     };

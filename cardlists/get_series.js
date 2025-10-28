@@ -31,6 +31,11 @@ const getCardsFromTable = (table) => {
   const headings = [...thead.querySelectorAll("th")].map((e) =>
     e.innerText.trim()
   );
+  if (headings.includes("English Name")) {
+    console.error("Skipping non-english table");
+    return null;
+  }
+
   if (!headings.includes("Card number")) {
     console.error("Card number heading not found in table");
     return null;
@@ -62,13 +67,12 @@ const getCardsFromTable = (table) => {
 
 function tableToJson() {
   let tables = document.querySelectorAll("table"); //default:query all card tables
-
   let current = document.querySelectorAll(
     "div.wds-tab__content.wds-is-current"
   )[0];
   if (current) {
     //when page has a language selector, use the selected table 'current'
-    tables = [current.querySelector("table.card-list")];
+    tables = current.querySelectorAll("table.card-list");
   }
 
   let allCards = [];
